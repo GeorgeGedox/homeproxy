@@ -3,7 +3,7 @@
 #
 # Every value below can be set in the environment or in a `.env` file next to
 # this file. None is needed for the defaults.
-#   HOMEPROXY_IMAGE                      image to run (default homeproxy:latest)
+#   HOMEPROXY_IMAGE                      image to run (default ghcr.io/georgegedox/homeproxy:latest)
 #   HOMEPROXY_DATA                       /data on the host: a volume name or an
 #                                        absolute path (default: volume homeproxy-data)
 #   HOMEPROXY_BOOTSTRAP_LISTEN           ip:port of the setup page before setup, and of the
@@ -16,7 +16,7 @@
 
 services:
   homeproxy:
-    image: ${HOMEPROXY_IMAGE:-homeproxy:latest}
+    image: ${HOMEPROXY_IMAGE:-ghcr.io/georgegedox/homeproxy:latest}
     # HAProxy must see the real client address, and it binds the ports in config.yaml.
     network_mode: host
     # HAProxy needs NET_BIND_SERVICE, which Docker grants by default. Do not drop it.

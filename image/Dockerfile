@@ -184,3 +184,5 @@ WORKDIR /app
 
 # ---- final: a plain `docker build` produces the runtime image -----------------
 FROM runtime AS final
+# Links the GHCR package to its repository, so it follows the repository's access.
+LABEL org.opencontainers.image.source="https://github.com/GeorgeGedox/homeproxy"

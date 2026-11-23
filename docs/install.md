@@ -9,25 +9,26 @@ HomeProxy is one container: HAProxy, the dashboard, the internal DNS server and 
 - Ports 80 and 443 free on that address, or spare ports for a trial run (see [Migrating](migrating.md)).
 - A domain, and API credentials for its DNS provider, so HomeProxy can get certificates for it. The domain form lists every DNS provider that HomeProxy supports. On Cloudflare, that is an API token with the permissions Zone Read and DNS Edit (see [Certificates](certificates.md)). You need them in step 7, not before. A domain with no DNS provider works too, but it serves plain HTTP only.
 
-## 1. Build the image
-
-Release tags will publish the image. Until you have one, build it from a checkout of the repository:
-
-```sh
-git clone <repository URL> homeproxy-src
-cd homeproxy-src
-docker build -t homeproxy:latest -f image/Dockerfile .
-```
-
-To run an image under another name, set `HOMEPROXY_IMAGE` in step 3.
-
-## 2. Make a directory for the stack
+## 1. Make a directory for the stack
 
 ```sh
 mkdir ~/homeproxy
-cp deploy/compose.yaml ~/homeproxy/compose.yaml
 cd ~/homeproxy
+curl -fsSLo compose.yaml https://raw.githubusercontent.com/GeorgeGedox/homeproxy/main/deploy/compose.yaml
 ```
+
+## 2. Get the image
+
+`compose.yaml` runs `ghcr.io/georgegedox/homeproxy:latest`, which each release publishes for amd64. Compose pulls it in step 4.
+
+To build the image from source instead, for example on arm64:
+
+```sh
+git clone https://github.com/GeorgeGedox/homeproxy.git homeproxy-src
+docker build -t homeproxy:local -f homeproxy-src/image/Dockerfile homeproxy-src
+```
+
+Then set `HOMEPROXY_IMAGE=homeproxy:local` in step 3.
 
 ## 3. Choose your settings
 
@@ -35,7 +36,7 @@ The defaults need no changes when ports 80 and 443 are free. To change one, put 
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HOMEPROXY_IMAGE` | `homeproxy:latest` | The image to run |
+| `HOMEPROXY_IMAGE` | `ghcr.io/georgegedox/homeproxy:latest` | The image to run. Name a version, such as `ghcr.io/georgegedox/homeproxy:0.1.0`, to update only when you change it |
 | `HOMEPROXY_DATA` | volume `homeproxy-data` | What is mounted at `/data`. A volume name, or an absolute path such as `/srv/homeproxy` for a directory on local disk |
 | `HOMEPROXY_BOOTSTRAP_LISTEN` | port 8443 on the default route's address | `ip:port` of the setup page. See [Dashboard access](dashboard-access.md) |
 | `HOMEPROXY_PLACEHOLDER_HTTP_PORT` | `80` | Port of the page HAProxy serves before setup. Set it when something else holds port 80 |
@@ -154,11 +155,13 @@ The `config/` directory is plain YAML. You can keep it in a private repository b
 ## Update
 
 ```sh
-docker compose pull      # only when the image comes from a registry
+docker compose pull
 docker compose up -d
 ```
 
-In a source checkout, rebuild the image with the command from step 1, then run `docker compose up -d`. Compose replaces the container and keeps `/data`. HAProxy is down for a few seconds. Config files that an older version wrote are migrated on start, and the originals are kept in `/data/migration-backups`.
+With a version in `HOMEPROXY_IMAGE`, change it to the new version first. The [releases page](https://github.com/GeorgeGedox/homeproxy/releases) lists each version and its changes. With an image you built, rebuild it with the command from step 2 instead of `docker compose pull`.
+
+Compose replaces the container and keeps `/data`. HAProxy is down for a few seconds. Config files that an older version wrote are migrated on start, and the originals are kept in `/data/migration-backups`.
 
 ## Stop and remove
 

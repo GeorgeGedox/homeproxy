@@ -1,0 +1,59 @@
+name: release
+
+# A `vX.Y.Z` tag that matches backend/pyproject.toml publishes the smoke-tested
+# amd64 image to GHCR as `X.Y.Z` and `latest`, then the GitHub release that the
+# HomeProxy update check reads.
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+  packages: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    env:
+      TAG: ${{ github.ref_name }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: Tag matches the package version
+        run: |
+          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+          if [ "$TAG" != "v$version" ]; then
+            echo "tag $TAG does not match backend/pyproject.toml version $version" >&2
+            exit 1
+          fi
+      # Before check: its .pyc files keep the fake test keys but drop the gitleaks:allow comments.
+      - name: Scan for secrets
+        run: gitleaks dir --no-banner --redact
+      - name: Check
+        run: mise run check
+      - name: Build and smoke-test the image
+        run: mise run image
+      - name: Push the image
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          src="homeproxy:$(mise exec -- printenv COMPOSE_PROJECT_NAME)"
+          repo="ghcr.io/${GITHUB_REPOSITORY,,}"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          for tag in "${TAG#v}" latest; do
+            docker tag "$src" "$repo:$tag"
+            docker push "$repo:$tag"
+          done
+      - name: Create the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
