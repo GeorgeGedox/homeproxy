@@ -127,6 +127,7 @@ def test_prune_keeps_minutes_for_48_hours_and_hours_for_90_days(tmp_path: Path) 
     ]
 
 
+@pytest.mark.bench
 def test_a_90_day_query_takes_under_200_ms(tmp_path: Path) -> None:
     """Timed in CPU time of the querying thread. The query is SQLite on a file in the page cache,
     so it is CPU-bound, and on an idle machine CPU time equals wall time. Wall time would also

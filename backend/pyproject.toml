@@ -73,5 +73,9 @@ ignore_missing_imports = true
 testpaths = ["tests"]
 # Integration tests need Docker and the built image. `mise run test-integration`
 # selects them with `-m integration`, which overrides the default below.
-addopts = "-ra --strict-markers --import-mode=importlib -m 'not integration'"
-markers = ["integration: runs against the built image in compose (mise run test-integration)"]
+# Benchmarks depend on the machine's speed, so no default run includes them.
+addopts = "-ra --strict-markers --import-mode=importlib -m 'not integration and not bench'"
+markers = [
+    "integration: runs against the built image in compose (mise run test-integration)",
+    "bench: timing benchmark, run on demand with `uv run pytest -m bench`",
+]
