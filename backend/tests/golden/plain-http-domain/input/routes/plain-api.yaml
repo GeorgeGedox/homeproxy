@@ -1,0 +1,9 @@
+version: 1
+name: plain-api
+type: http
+hosts: [app.example.net]
+exposure: public
+upstreams:
+  - address: 192.168.1.22:8080
+path_prefix: /api
+strip_prefix: true

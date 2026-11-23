@@ -1,0 +1,19 @@
+# Allow list: the build context holds only what image/Dockerfile copies.
+*
+!backend/pyproject.toml
+!backend/uv.lock
+!backend/homeproxy/
+!image/
+!frontend/
+
+**/__pycache__
+**/*.py[cod]
+image/test/
+image/dev/make-seed
+frontend/node_modules
+frontend/.nuxt
+frontend/.output
+frontend/api
+frontend/tests
+frontend/playwright-report
+frontend/test-results

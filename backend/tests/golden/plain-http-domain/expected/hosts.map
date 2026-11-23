@@ -1,0 +1,4 @@
+app.example.com route-secure
+app.example.org route-signed
+nas.example.net route-plain-lan
+www.example.net route-plain-www

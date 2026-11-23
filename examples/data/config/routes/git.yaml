@@ -1,0 +1,11 @@
+# A public passthrough route. DNS-only in Cloudflare, so the backend's certificate stays in use.
+version: 1
+name: git
+type: passthrough
+hosts: [git.example.net]
+exposure: public
+upstreams:
+  - address: 192.168.1.32:443
+cloudflare: {dns: true, proxied: false}
+geoip: {block_countries: [AQ]}
+enabled: true

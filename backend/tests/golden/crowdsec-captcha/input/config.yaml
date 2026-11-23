@@ -1,0 +1,24 @@
+# CrowdSec on with a captcha provider: checked requests wait briefly for a small body, which
+# goes to the bouncer with the captcha answer.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  # Not a real hash. The generator never reads this field.
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$ZmFrZS1zYWx0$ZmFrZS1oYXNo"
+network:
+  lan_cidrs: [192.168.1.0/24, 10.0.0.0/8]
+  haproxy_lan_ip: 192.168.1.10
+# The passthrough route is proxied, so Cloudflare's edge is not checked on it.
+cloudflare:
+  enabled: true
+domains:
+  - zone: example.com
+    dns_provider: cloudflare
+    credentials: cf-main
+dns_server:
+  listen: 192.168.1.10:5335
+crowdsec:
+  enabled: true
+  lapi_url: http://127.0.0.1:18080
+  syslog: 127.0.0.1:15140
+  captcha_provider: turnstile

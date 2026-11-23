@@ -1,0 +1,8 @@
+version: 1
+name: dns-only
+type: http
+hosts: [dns-only.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8080
+cloudflare: {dns: true, proxied: false}

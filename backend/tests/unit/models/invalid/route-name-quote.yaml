@@ -1,0 +1,8 @@
+# A quote in a name could break out of an argument.
+version: 1
+name: 'app"x'
+type: http
+hosts: [app.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.20:8080

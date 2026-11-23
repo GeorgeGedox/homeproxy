@@ -1,0 +1,10 @@
+#!/command/with-contenv bash
+# Internal DNS server. It reads /data/generated/dns-records.json, which each
+# apply writes, and rereads it on SIGHUP to the pid in /run/homeproxy/dns.pid.
+# It depends only on init-data, so it keeps answering if the API stops.
+set -euo pipefail
+# The logger service (dns-log) reads stdout only, so stderr goes there too.
+exec 2>&1
+
+cd /opt/homeproxy
+exec /command/s6-setuidgid homeproxy /opt/homeproxy/venv/bin/python -m homeproxy.dns

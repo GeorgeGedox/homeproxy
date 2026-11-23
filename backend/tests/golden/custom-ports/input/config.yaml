@@ -1,0 +1,16 @@
+# Spare ports beside an existing proxy, an IPv6 LAN range and the Prometheus exporter.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  # Not a real hash. The generator never reads this field.
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$ZmFrZS1zYWx0$ZmFrZS1oYXNo"
+network:
+  lan_cidrs: [192.168.1.0/24, 10.0.0.0/8, fd00::/8]
+  haproxy_lan_ip: 192.168.1.10
+  http_port: 8080
+  https_port: 8444
+dns_server:
+  listen: 192.168.1.10:5335
+prometheus:
+  enabled: true
+  listen: 192.168.1.10:8405

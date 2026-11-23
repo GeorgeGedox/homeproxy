@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+#MISE description="Regenerate the DNS provider catalog from the lego pinned in image/Dockerfile. Run after a lego bump"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:?}"
+image=$(sed -n 's/^ARG LEGO_IMAGE=//p' "$root/image/Dockerfile")
+work=$(mktemp -d)
+container=$(docker create "$image")
+trap 'docker rm "$container" >/dev/null; rm -rf "$work"' EXIT
+docker cp "$container:/lego" "$work/lego"
+cd "$root/backend"
+uv sync --frozen
+uv run --frozen python -m homeproxy.certs.providers "$work/lego" >"$work/catalog.json"
+mv "$work/catalog.json" homeproxy/certs/lego_providers.json
+echo "Catalog updated. Review the diff before you commit it."

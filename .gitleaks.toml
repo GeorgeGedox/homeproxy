@@ -1,0 +1,4 @@
+title = "HomeProxy gitleaks config"
+
+[extend]
+useDefault = true

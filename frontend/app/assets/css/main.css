@@ -1,0 +1,84 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+@import "@fontsource-variable/geist";
+@import "@fontsource-variable/geist-mono";
+@import "flag-icons/css/flag-icons.min.css";
+
+/* Fonts are bundled from npm, so the dashboard never fetches anything at runtime. */
+@theme {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, monospace;
+}
+
+:root {
+  color-scheme: dark;
+  --ui-radius: 0.375rem;
+}
+
+/* Tailwind 4 gives buttons the arrow cursor. Everything that acts on a click shows the hand,
+   and a disabled control says it will not. In the base layer, so a utility can still override. */
+@layer base {
+  button:not(:disabled),
+  [role="button"]:not([aria-disabled="true"]),
+  [role="switch"]:not([data-disabled]),
+  [role="tab"]:not([data-disabled]),
+  [role="option"]:not([data-disabled]),
+  [role="menuitem"]:not([data-disabled]),
+  [role="checkbox"]:not([data-disabled]),
+  [role="radio"]:not([data-disabled]),
+  label:has(+ [role="switch"]),
+  label:has([role="radio"]:not([data-disabled])),
+  label:has([role="checkbox"]:not([data-disabled])),
+  summary {
+    cursor: pointer;
+  }
+  :disabled,
+  [aria-disabled="true"],
+  [data-disabled] {
+    cursor: not-allowed;
+  }
+}
+
+/* One keyboard focus ring everywhere: 2px of the accent with a gap, so it shows on any surface and
+   around the orange button. Unlayered on purpose: it must win over the faint per-component outlines.
+   Text fields keep their own inset accent ring. A container that clips (overflow) sets
+   --focus-offset to a negative value to draw the ring inside. */
+:focus-visible:not(input, textarea, select) {
+  outline: 2px solid var(--ui-primary);
+  outline-offset: var(--focus-offset, 2px);
+}
+:focus-visible::before {
+  outline: none;
+}
+
+/* One near-black graphite ramp for every surface, three text roles, hairline borders.
+   Color lives in the accent (orange), the status marks and the charts. */
+.dark {
+  --ui-bg: #0b0b0c;
+  --ui-bg-muted: #111112;
+  --ui-bg-elevated: #161618;
+  --ui-bg-accented: #202022;
+  --ui-border: rgb(237 237 237 / 0.08);
+  --ui-border-muted: rgb(237 237 237 / 0.06);
+  --ui-border-accented: rgb(237 237 237 / 0.14);
+  --ui-text-highlighted: #ededed;
+  --ui-text: #d6d6d9;
+  --ui-text-toned: #b8b8bd;
+  --ui-text-muted: #a1a1a6;
+  --ui-text-dimmed: #85858b;
+}
+
+/* Charts (unovis) on the same ramp: muted grid and mono labels, the accent only on the data.
+   `:root.dark` outranks the defaults unovis injects on :root at runtime. */
+:root.dark {
+  --vis-font-family: var(--font-mono);
+  --vis-axis-tick-label-color: var(--ui-text-dimmed);
+  --vis-axis-tick-label-font-size: 11px;
+  --vis-axis-grid-color: rgb(237 237 237 / 0.06);
+  --vis-crosshair-line-stroke-color: var(--ui-border-accented);
+  --vis-tooltip-background-color: var(--ui-bg-elevated);
+  --vis-tooltip-border-color: var(--ui-border-accented);
+  --vis-tooltip-text-color: var(--ui-text-highlighted);
+  --vis-tooltip-padding: 6px 10px;
+  --vis-tooltip-border-radius: 6px;
+}

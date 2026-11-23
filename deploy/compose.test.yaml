@@ -1,0 +1,33 @@
+# Integration test stack. `mise run test-integration` builds the image, and the
+# fixtures in backend/tests/integration/conftest.py bring this file up and down.
+#
+# Nothing here binds a fixed host port: Docker picks a free loopback port for
+# each published port, and the tests ask compose which one it chose. The
+# fixtures run it as compose project `<COMPOSE_PROJECT_NAME>-test` so the
+# teardown never touches the checkout's `mise run dev` stack.
+#
+# Variables:
+#   IMAGE_NAME                   repository of the image, default homeproxy
+#   HOMEPROXY_TEST_IMAGE_TAG     image tag; the fixtures pass COMPOSE_PROJECT_NAME
+#                                from mise.toml, the tag `mise run image` builds.
+#                                Compose replaces COMPOSE_PROJECT_NAME with `-p`.
+#   HOMEPROXY_TEST_API_PORT      port the API listens on inside the container
+#   HOMEPROXY_TEST_HTTP_PORT     port HAProxy listens on inside the container
+services:
+  homeproxy:
+    image: "${IMAGE_NAME:-homeproxy}:${HOMEPROXY_TEST_IMAGE_TAG:?set by the integration test fixtures}"
+    pull_policy: never
+    environment:
+      HOMEPROXY_BOOTSTRAP_LISTEN: "0.0.0.0:${HOMEPROXY_TEST_API_PORT:-8443}"
+      # Tests never call the internet. Nothing listens on port 9, so these jobs fail at once.
+      HOMEPROXY_CF_RANGES_URL: "http://127.0.0.1:9"
+      HOMEPROXY_RELEASES_URL: "http://127.0.0.1:9/"
+      HOMEPROXY_GEOIP_URL: "http://127.0.0.1:9"
+    ports:
+      - "127.0.0.1::${HOMEPROXY_TEST_API_PORT:-8443}"
+      - "127.0.0.1::${HOMEPROXY_TEST_HTTP_PORT:-80}"
+    volumes:
+      - data:/data
+
+volumes:
+  data:

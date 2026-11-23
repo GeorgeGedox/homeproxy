@@ -1,0 +1,7 @@
+version: 1
+name: pve
+type: passthrough
+hosts: [pve.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.25:8006

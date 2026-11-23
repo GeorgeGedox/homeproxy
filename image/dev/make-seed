@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Build the dev stack's seed data from examples/data/ into a directory.
+# Usage: image/dev/make-seed <output-dir>
+#
+# examples/data/ is written for a real LAN and for the tests. The dev stack runs
+# in a bridge network, so this script makes four changes on a copy:
+#   - listeners bind 0.0.0.0, and haproxy_lan_ip is the container's pinned
+#     address, because 192.168.1.10 does not exist in the container;
+#   - the dev network's subnet joins lan_cidrs, so LAN-only routes work from the host;
+#   - Cloudflare and DDNS are off, so the dev stack calls no real Cloudflare API;
+#   - CrowdSec is on 127.0.0.1, because the `crowdsec` service shares the
+#     homeproxy container's network (HAProxy needs an IP for its log target).
+# The address and subnet come from deploy/compose.dev.yaml.
+# secrets.yaml gets mode 0600. Needs yq (pinned in mise.toml).
+set -euo pipefail
+
+out="${1:?usage: make-seed <output-dir>}"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+compose="$root/deploy/compose.dev.yaml"
+HOMEPROXY_DEV_IP="$(yq --yaml-fix-merge-anchor-to-spec -e '.services.homeproxy.networks.default.ipv4_address' "$compose")"
+HOMEPROXY_DEV_SUBNET="$(yq --yaml-fix-merge-anchor-to-spec -e '.networks.default.ipam.config[0].subnet' "$compose")"
+export HOMEPROXY_DEV_IP HOMEPROXY_DEV_SUBNET
+
+if [ -e "$out" ] && [ -n "$(ls -A "$out")" ]; then
+  echo "make-seed: $out is not empty" >&2
+  exit 1
+fi
+mkdir -p "$out"
+cp -r "$root/examples/data/." "$out/"
+
+yq -i '
+  .cloudflare.enabled = false
+  | .domains[].cloudflare.ddns_update = false
+  | .dashboard.listen |= sub("^[^:]+", "0.0.0.0")
+  | .dns_server.listen |= sub("^[^:]+", "0.0.0.0")
+  | .network.haproxy_lan_ip = strenv(HOMEPROXY_DEV_IP)
+  | .network.lan_cidrs += [strenv(HOMEPROXY_DEV_SUBNET)]
+  | .crowdsec.lapi_url = "http://127.0.0.1:8080"
+  | .crowdsec.syslog = "127.0.0.1:514"
+' "$out/config/config.yaml"
+
+chmod 0700 "$out/secrets"
+chmod 0600 "$out/secrets/secrets.yaml"

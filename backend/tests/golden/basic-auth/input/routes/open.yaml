@@ -1,0 +1,8 @@
+# No auth, so no userlist and no auth rule, even though secrets.yaml has users for this name.
+version: 1
+name: open
+type: http
+hosts: [open.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.31:80

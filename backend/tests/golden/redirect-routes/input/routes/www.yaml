@@ -1,0 +1,8 @@
+version: 1
+name: www
+type: redirect
+hosts: [www.example.com, www.example.net]
+exposure: public
+redirect: {to: "https://example.com/", code: 301, keep_path: true}
+cloudflare: {dns: true, proxied: true}
+geoip: {block_countries: [CN]}

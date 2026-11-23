@@ -1,0 +1,7 @@
+# A route needs at least one upstream.
+version: 1
+name: app
+type: http
+hosts: [app.example.com]
+exposure: lan
+upstreams: []

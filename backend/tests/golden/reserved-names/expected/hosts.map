@@ -1,0 +1,10 @@
+host-1.example.com route-global
+host-10.example.com route-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-
+host-2.example.com route-defaults
+host-3.example.com route-frontend
+host-4.example.com route-backend
+host-5.example.com route-stats
+host-6.example.com route-default
+host-7.example.com route-listen
+host-8.example.com route-trailing-
+host-9.example.com route-not-found

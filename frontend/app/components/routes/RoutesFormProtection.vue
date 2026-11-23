@@ -1,0 +1,28 @@
+<script setup lang="ts">
+import type { RouteUser } from "~/utils/route";
+
+const draft = defineModel<RouteDraft>({ required: true });
+const users = defineModel<RouteUser[]>("users", { required: true });
+const password = computed({ get: () => draft.value.auth === "basic", set: (on: boolean) => (draft.value.auth = on ? "basic" : "none") });
+const blockNote = computed(() =>
+  draft.value.exposure === "public" ? "Visitors from these countries get 403, on top of the global list" : "Checked only while the site is public");
+</script>
+
+<template>
+  <section class="space-y-4 border-t border-default pt-6">
+    <h2 class="text-base font-medium text-highlighted">Protection</h2>
+    <template v-if="draft.type === 'http'">
+      <USwitch v-model="password" label="Ask for a password" description="HomeProxy checks it before the service sees the request" />
+      <UFormField v-if="password" label="Users" name="users" description="Passwords are write-only. Users take effect at the next apply.">
+        <RoutesUsersField v-model="users" />
+      </UFormField>
+    </template>
+    <USwitch v-model="draft.geoip_enabled" label="Block countries" :description="blockNote" />
+    <UFormField v-if="draft.geoip_enabled" name="geoip.block_countries">
+      <GeoipCountryPicker v-model="draft.block_countries" />
+    </UFormField>
+    <p v-else-if="draft.block_countries.length" class="text-sm text-muted">
+      Off. Kept for later: {{ draft.block_countries.map(countryName).join(", ") }}
+    </p>
+  </section>
+</template>

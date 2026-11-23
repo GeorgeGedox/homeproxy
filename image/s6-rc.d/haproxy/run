@@ -1,0 +1,15 @@
+#!/command/with-contenv bash
+# HAProxy in master-worker mode. The arguments are fixed because a reload
+# keeps the original ones: it must read whatever release /data/generated
+# points to. The file capability on the binary lets this unprivileged user
+# bind ports below 1024.
+set -euo pipefail
+
+# Only the first-boot placeholder reads this. Generated releases bind the
+# ports from config.yaml.
+export HOMEPROXY_PLACEHOLDER_HTTP_PORT="${HOMEPROXY_PLACEHOLDER_HTTP_PORT:-80}"
+
+exec /command/s6-setuidgid homeproxy \
+  haproxy -W \
+  -S /run/haproxy/master.sock,mode,600,level,admin \
+  -f /data/generated/conf.d/

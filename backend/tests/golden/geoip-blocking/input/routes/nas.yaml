@@ -1,0 +1,9 @@
+# LAN-only: outside clients are refused anyway, so none of its countries are listed.
+version: 1
+name: nas
+type: http
+hosts: [nas.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.30:5000
+geoip: {block_countries: [DE]}

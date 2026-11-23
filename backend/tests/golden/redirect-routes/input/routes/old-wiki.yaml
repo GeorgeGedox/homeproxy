@@ -1,0 +1,6 @@
+version: 1
+name: old-wiki
+type: redirect
+hosts: [old-wiki.example.com]
+exposure: lan
+redirect: {to: "https://wiki.example.net/start?from=old-wiki", code: 308}

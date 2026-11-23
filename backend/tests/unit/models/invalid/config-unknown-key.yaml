@@ -1,0 +1,11 @@
+# A typo must fail, not silently drop the setting.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$c2FsdHNhbHQ$aGFzaGhhc2hoYXNo"
+network:
+  lan_cidrs: [192.168.1.0/24]
+  haproxy_lan_ip: 192.168.1.10
+  http_prot: 8080
+dns_server:
+  listen: 192.168.1.10:5335

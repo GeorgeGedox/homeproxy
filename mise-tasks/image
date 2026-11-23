@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+#MISE description="Build the amd64 image and smoke-test it"
+# Tags homeproxy:<COMPOSE_PROJECT_NAME>, which the integration tests use.
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+tag="homeproxy:${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is set by mise.toml}"
+docker buildx build --platform linux/amd64 --load -t "$tag" -f image/Dockerfile .
+image/test/smoke.sh "$tag" linux/amd64
+echo "image: ok"

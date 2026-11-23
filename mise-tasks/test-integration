@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+#MISE description="Build the image, start it in compose on random ports and run the integration tests"
+#MISE depends=["image"]
+# Extra arguments go to pytest, for example `mise run test-integration -- -k healthz`. A test path,
+# relative to backend/, runs only that path: `-- tests/integration/api/test_api_dns.py`.
+# The fixtures remove what they start when the run ends.
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}/backend"
+
+: "${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is set by mise.toml}"
+uv sync --frozen
+
+# A killed run skips its teardown. Remove what it left: every container, network and volume named
+# homeproxy-test* or homeproxy-smoke*. The dev stack's names (homeproxy_*) do not match.
+leftovers="^${COMPOSE_PROJECT_NAME}-(test|smoke)"
+docker ps --all --format '{{.Names}}' | { grep -E "$leftovers" || true; } | xargs -r docker rm --force --volumes >/dev/null
+docker network ls --format '{{.Name}}' | { grep -E "$leftovers" || true; } | xargs -r docker network rm >/dev/null
+docker volume ls --format '{{.Name}}' | { grep -E "$leftovers" || true; } | xargs -r docker volume rm >/dev/null
+
+# One pytest-xdist worker per core. Each test module stays on one worker, so its containers start
+# once; spread over workers, they started on each (on 4 workers: 157 s, and 136 s this way). Each
+# worker that runs a test of the shared stack starts its own stack, named after the worker. Pass
+# `-n 0` to run in one process.
+selection=(tests/integration)
+for arg in "$@"; do
+  if [[ -e "${arg%%::*}" ]]; then
+    selection=()
+  fi
+done
+uv run --frozen pytest -m integration -n auto --dist loadscope --durations=15 "${selection[@]}" "$@"

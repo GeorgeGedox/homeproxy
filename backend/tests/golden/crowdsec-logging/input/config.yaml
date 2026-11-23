@@ -1,0 +1,17 @@
+# CrowdSec on: HAProxy also sends its access lines to CrowdSec's syslog acquisition, and asks
+# the bouncer about every client outside the LAN and the allowlist.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  # Not a real hash. The generator never reads this field.
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$ZmFrZS1zYWx0$ZmFrZS1oYXNo"
+network:
+  lan_cidrs: [192.168.1.0/24, 10.0.0.0/8]
+  haproxy_lan_ip: 192.168.1.10
+dns_server:
+  listen: 192.168.1.10:5335
+crowdsec:
+  enabled: true
+  lapi_url: http://127.0.0.1:18080
+  syslog: 127.0.0.1:15140
+  allowlist: [203.0.113.7, 2001:db8::/32]

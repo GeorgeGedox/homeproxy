@@ -1,0 +1,38 @@
+# Claude Code
+/.claude/
+CLAUDE.local.md
+
+# Personal notes
+/NOTES.md
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Node and Nuxt
+node_modules/
+.nuxt/
+.output/
+frontend/api/
+playwright-report/
+test-results/
+
+# Local data and secrets
+/data/
+secrets.yaml
+!examples/data/secrets/secrets.yaml
+.env
+.env.*
+mise.local.toml
+.mise.local.toml
+
+# Editors and OS
+.vscode/
+.idea/
+.DS_Store

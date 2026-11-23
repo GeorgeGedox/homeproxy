@@ -1,0 +1,8 @@
+version: 1
+name: lan-only
+type: http
+hosts: [lan.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.20:8080
+cloudflare: {dns: true, proxied: true}

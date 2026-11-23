@@ -1,0 +1,4 @@
+first.example.com route-verified-by-route-host
+portal.example.com route-verified-by-upstream-name
+pve.example.com route-proxmox
+second.example.com route-verified-by-route-host

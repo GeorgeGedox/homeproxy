@@ -1,0 +1,24 @@
+# example.net has no DNS provider, so no certificate: its routes are served over plain HTTP only.
+# Every check still applies to them: CrowdSec, GeoIP, LAN-only and basic auth.
+# example.org is self-signed: it has a certificate, so its routes are HTTPS with HSTS.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  # Not a real hash. The generator never reads this field.
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$ZmFrZS1zYWx0$ZmFrZS1oYXNo"
+network:
+  lan_cidrs: [192.168.1.0/24, 10.0.0.0/8]
+  haproxy_lan_ip: 192.168.1.10
+domains:
+  - zone: example.com
+    dns_provider: cloudflare
+    credentials: cf-main
+  - zone: example.net
+  - zone: example.org
+    dns_provider: self-signed
+dns_server:
+  listen: 192.168.1.10:5335
+crowdsec:
+  enabled: true
+  lapi_url: http://127.0.0.1:18080
+  syslog: 127.0.0.1:15140

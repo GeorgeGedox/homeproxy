@@ -1,0 +1,8 @@
+version: 1
+name: encoded-newline
+type: http
+hosts: [newline.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8080
+health_check: {path: /%0a}

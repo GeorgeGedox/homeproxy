@@ -1,0 +1,7 @@
+version: 1
+name: ssh
+type: tcp
+listen_port: 2222
+exposure: lan
+upstreams:
+  - address: 192.168.1.26:22

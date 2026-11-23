@@ -1,0 +1,6 @@
+version: 1
+name: plain-www
+type: redirect
+hosts: [www.example.net]
+exposure: public
+redirect: {to: "http://app.example.net/", keep_path: true}

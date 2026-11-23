@@ -1,0 +1,15 @@
+#!/command/with-contenv bash
+# Dev replacement for the api service run script: uvicorn reloads when the
+# mounted backend source changes. HAProxy never depends on this service.
+set -euo pipefail
+# The logger service (api-log) reads stdout only, so stderr goes there too.
+exec 2>&1
+
+listen="${HOMEPROXY_BOOTSTRAP_LISTEN:-0.0.0.0:8443}"
+host="${listen%:*}"
+port="${listen##*:}"
+
+cd /opt/homeproxy
+exec /command/s6-setuidgid homeproxy /opt/homeproxy/venv/bin/uvicorn homeproxy.main:app \
+  --host "$host" --port "$port" --workers 1 \
+  --reload --reload-dir /opt/homeproxy/src

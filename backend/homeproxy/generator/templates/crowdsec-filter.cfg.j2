@@ -1,0 +1,6 @@
+    filter spoe engine crowdsec config crowdsec-spoe.cfg
+
+# After HAProxy 3.4.7 reads the SPOE file, relative paths later in this file no longer resolve
+# from the release directory. Setting `default-path` again fixes that.
+global
+    default-path parent

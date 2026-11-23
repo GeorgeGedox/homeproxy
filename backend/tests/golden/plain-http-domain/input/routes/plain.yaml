@@ -1,0 +1,9 @@
+version: 1
+name: plain
+type: http
+hosts: [app.example.net]
+exposure: public
+upstreams:
+  - address: 192.168.1.21:8080
+auth: {type: basic}
+geoip: {block_countries: [CN]}

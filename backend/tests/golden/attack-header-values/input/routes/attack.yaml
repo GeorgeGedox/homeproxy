@@ -1,0 +1,46 @@
+version: 1
+name: attack
+type: http
+hosts: [attack.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8080
+# The same attack values in both directions.
+request_headers:
+  X-Expression: "%[env(HOME)]"
+  X-Log-Variable: "%t %{+Q}o %ci"
+  X-Env-Braces: "${HOME}"
+  X-Env-Bare: "$HOME"
+  X-Backslash-End: 'a\'
+  X-Percent-End: "100%"
+  X-Double-Percent: "%%[env(HOME)]"
+  X-Quote-Then-Condition: 'x" if { always_false }'
+  X-Quote-Then-Comment: 'x" # rest'
+  X-Quote-After-Backslash: 'x\" if { always_false }'
+  X-Single-Quotes: "default-src 'self'"
+  X-Unbalanced-Single-Quote: "it's"
+  X-Hash: "a # b"
+  X-Backslash-N: 'a\nb'
+  X-Backslash-X: '\x41'
+  X-Inner-Spaces: "a  b c"
+  X-Everything: >-
+    "'\$%#{}[]()
+response_headers:
+  X-Expression: "%[env(HOME)]"
+  X-Log-Variable: "%t %{+Q}o %ci"
+  X-Env-Braces: "${HOME}"
+  X-Env-Bare: "$HOME"
+  X-Backslash-End: 'a\'
+  X-Percent-End: "100%"
+  X-Double-Percent: "%%[env(HOME)]"
+  X-Quote-Then-Condition: 'x" if { always_false }'
+  X-Quote-Then-Comment: 'x" # rest'
+  X-Quote-After-Backslash: 'x\" if { always_false }'
+  X-Single-Quotes: "default-src 'self'"
+  X-Unbalanced-Single-Quote: "it's"
+  X-Hash: "a # b"
+  X-Backslash-N: 'a\nb'
+  X-Backslash-X: '\x41'
+  X-Inner-Spaces: "a  b c"
+  X-Everything: >-
+    "'\$%#{}[]()

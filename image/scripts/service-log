@@ -1,0 +1,22 @@
+#!/bin/bash
+# The logger of one service: copy its output to /data/state/logs/<service> with a timestamp
+# and rotation, and pass every line on unchanged to the container log, which stays the
+# place for the setup token. Extra arguments are s6-log directives for the file only, such
+# as a deselect.
+#
+# The service must never block on its log. Without -b, s6-log keeps reading while a full
+# disk refuses writes. It exits when the directory is not writable, and the pipe would then
+# fill, so in that case it only passes lines on.
+set -euo pipefail
+
+service=$1
+shift
+dir=/data/state/logs/$service
+
+if /command/s6-setuidgid homeproxy test -w "$dir"; then
+  # 1 before T: the container log gets the lines without a timestamp. n4 s1000000: up to
+  # four archives of about 1 MB besides `current` (docs/metrics-and-logs.md).
+  exec /command/s6-setuidgid homeproxy /command/s6-log 1 T "$@" n4 s1000000 "$dir"
+fi
+echo "$service-log: cannot write $dir, so the $service log reaches only the container log" >&2
+exec /command/s6-setuidgid homeproxy /command/s6-log 1

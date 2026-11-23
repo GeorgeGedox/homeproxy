@@ -1,0 +1,4 @@
+#!/usr/bin/env bash
+#MISE description="Lint, types, unit and golden tests. Required before every merge"
+#MISE depends=["check-backend", "check-frontend", "check-infra"]
+set -euo pipefail

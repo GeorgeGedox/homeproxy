@@ -1,0 +1,8 @@
+app.example.com route-zone-default
+dns-only.example.com route-dns-only
+home.example.com route-ddns-host
+lan.example.com route-lan-only
+mixed.example.com route-mixed-zones
+mixed.example.net route-mixed-zones
+no-record.example.com route-no-record
+proxied.example.net route-proxied

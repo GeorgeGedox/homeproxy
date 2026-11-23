@@ -1,0 +1,6 @@
+route-ddns-host 1
+route-dns-only 1
+route-mixed-zones 1
+route-no-record 1
+route-proxied 1
+route-zone-default 1

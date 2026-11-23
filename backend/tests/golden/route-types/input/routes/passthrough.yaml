@@ -1,0 +1,9 @@
+version: 1
+name: passthrough
+type: passthrough
+hosts: [git.example.com, code.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.23:443
+  - address: git-backup.lan:443
+geoip: {block_countries: [CN]}

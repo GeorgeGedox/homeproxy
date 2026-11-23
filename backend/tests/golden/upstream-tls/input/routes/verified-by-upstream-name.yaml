@@ -1,0 +1,9 @@
+version: 1
+name: verified-by-upstream-name
+type: http
+hosts: [portal.example.com]
+exposure: public
+upstreams:
+  - address: backend.example.net:8443
+  - address: 192.168.1.42:8443
+tls_upstream: {enabled: true}

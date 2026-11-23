@@ -1,0 +1,8 @@
+# Test hashes only. `open` has users, but its route has no basic auth, so they are not rendered.
+version: 1
+session_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+basic_auth:
+  files:
+    carol: "$6$rounds=6000$carolsalt$Ak4KHyxzDE0T76V6iJtypWbtFPAQijcrq6R3XcFq59Ob9SG8V1LlJdm4X2avXZqCny2H2FhQsBPkmq8dV.oM10"
+    bob: "$6$bobsalt$0ayWbOvdpplHpxhb32EQ6IlDPHCjv7U1gh18r88FYW2UYyRurowntIrZYaeBgHKXgxmOEl1wLBOVgEHs0XiPz/"
+  open: {dave: "$6$bobsalt$0ayWbOvdpplHpxhb32EQ6IlDPHCjv7U1gh18r88FYW2UYyRurowntIrZYaeBgHKXgxmOEl1wLBOVgEHs0XiPz/"}

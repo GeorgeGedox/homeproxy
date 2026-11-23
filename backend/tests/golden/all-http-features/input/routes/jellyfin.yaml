@@ -1,0 +1,19 @@
+version: 1
+name: jellyfin
+type: http
+hosts: [media.example.net, jellyfin.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8096
+  - address: jellyfin-b:8096
+  - address: jellyfin-c.example.net:8096
+health_check: {path: /health?full=1, interval: 30s}
+websocket: true
+request_headers:
+  X-Forwarded-Prefix: /media
+response_headers:
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: "default-src 'self'"
+  Strict-Transport-Security: max-age=300
+# The base config has Cloudflare off, so this switch adds nothing to proxied-only.map.
+cloudflare: {dns: true, proxied: true}

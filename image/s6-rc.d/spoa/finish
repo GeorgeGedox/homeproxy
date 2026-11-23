@@ -1,0 +1,12 @@
+#!/bin/bash
+# Runs each time the bouncer exits. The API removes the pid file before it
+# stops the bouncer for a new config, so then the bouncer starts again at once.
+# A pid file still in place means the bouncer exited on its own, for example
+# while the LAPI is unreachable: wait before the next try, so it does not
+# restart every second. s6-overlay kills a finish script after 5 s.
+pid_file=/run/crowdsec-spoa/spoa.pid
+
+if [ -e "$pid_file" ]; then
+  rm -f "$pid_file"
+  sleep 3
+fi

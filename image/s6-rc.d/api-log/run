@@ -1,0 +1,8 @@
+#!/bin/bash
+# Stores the dashboard's output. Two kinds of line stay out of the file and still reach the
+# container log: the setup token, which `announce` in auth/setup_token.py prints indented by
+# four spaces (token_urlsafe(24): 32 characters), and uvicorn's access lines for healthz, which
+# a container health check requests every few seconds.
+exec /etc/s6-overlay/scripts/service-log api \
+  '-^    [A-Za-z0-9_-]{32}$' \
+  '-^INFO: +[^ ]+ - "GET /api/v1/healthz[ ?]'

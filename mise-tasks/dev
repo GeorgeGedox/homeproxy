@@ -1,0 +1,65 @@
+#!/usr/bin/env bash
+#MISE description="Dev stack in compose: up (default), seed, down, reset, logs, ps"
+# Usage: mise run dev [-- <command>]
+#   up     build and start on the data volume as it is. A new volume has no
+#          config, so HomeProxy starts in setup mode and the token is printed
+#   seed   REPLACE the data volume with the example config, then start
+#   down   stop the stack and keep its data
+#   reset  stop the stack and delete its data volumes
+#   logs   follow the logs
+#   ps     list the services
+# Host ports are fixed in deploy/compose.dev.yaml. Docker fails if one is taken.
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+dc() { docker compose -f deploy/compose.dev.yaml "$@"; }
+
+# The ui container runs as the host user, so files it writes in frontend/ stay yours.
+export HOMEPROXY_DEV_UID="${HOMEPROXY_DEV_UID:-$(id -u)}"
+export HOMEPROXY_DEV_GID="${HOMEPROXY_DEV_GID:-$(id -g)}"
+
+build() {
+  # Docker would create these mount points as root and block Nuxt on the host.
+  mkdir -p frontend/node_modules frontend/.nuxt
+  dc build homeproxy ui
+}
+
+start() {
+  dc up -d --wait --wait-timeout 300
+  echo "dashboard: http://127.0.0.1:3000/ (Nuxt dev server, proxies /api)"
+  echo "api:       http://127.0.0.1:8000/api/v1/healthz"
+  echo "haproxy:   http://127.0.0.1:8080/ and https://127.0.0.1:8443/"
+  echo "dns:       dig @127.0.0.1 -p 5335 <name>"
+  if ! dc exec -T homeproxy test -e /data/config/config.yaml; then
+    # The dev API builds its auth state, and prints the token, on the first request that needs it.
+    curl -s -o /dev/null http://127.0.0.1:8000/api/v1/setup/status
+    echo "setup token: $(dc logs homeproxy | grep -A2 'enter this setup token' | tail -n 1 | awk '{print $NF}')"
+  fi
+}
+
+seed() {
+  local dir status=0
+  echo "seed: this REPLACES everything in the dev data volume with the example config"
+  build
+  dc down
+  dir="$(mktemp -d)"
+  rmdir "$dir"
+  image/dev/make-seed "$dir"
+  HOMEPROXY_DEV_SEED_DIR="$dir" dc run --rm --no-deps seed || status=$?
+  rm -rf "$dir"
+  [ "$status" = 0 ] || return "$status"
+  start
+}
+
+case "${1:-up}" in
+  up) build && start ;;
+  seed) seed ;;
+  down) dc down ;;
+  reset) dc down --volumes --remove-orphans ;;
+  logs) dc logs -f ;;
+  ps) dc ps ;;
+  *)
+    echo "dev: unknown command '$1'. Use up, seed, down, reset, logs or ps." >&2
+    exit 2
+    ;;
+esac

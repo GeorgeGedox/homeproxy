@@ -1,0 +1,15 @@
+#!/command/with-contenv bash
+# Dashboard API over HTTPS with the self-signed certificate in /data/tls.
+# `homeproxy serve` picks the listen address: dashboard.listen after setup;
+# before setup, HOMEPROXY_BOOTSTRAP_LISTEN or port 8443 on the address of the
+# default route's interface. HAProxy never depends on this service.
+set -euo pipefail
+# The logger service (api-log) reads stdout only, so stderr goes there too.
+exec 2>&1
+
+# Every apply reads the country map, about 10 MB, as one string. With glibc's default, freed
+# blocks that large stay in the heap and add about 20 MB to the idle footprint.
+export MALLOC_MMAP_THRESHOLD_=131072
+
+cd /opt/homeproxy
+exec /command/s6-setuidgid homeproxy /opt/homeproxy/venv/bin/homeproxy serve

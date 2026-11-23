@@ -1,0 +1,16 @@
+#!/usr/bin/env bash
+#MISE description="Regenerate the TypeScript API client from FastAPI's OpenAPI schema"
+set -euo pipefail
+root="${MISE_PROJECT_ROOT:?}"
+mkdir -p "$root/frontend/api"
+(
+  cd "$root/backend"
+  uv sync --frozen
+  uv run --frozen python -c \
+    "import json; from homeproxy.main import app; print(json.dumps(app.openapi(), indent=2, sort_keys=True))" \
+    >"$root/frontend/api/openapi.json"
+  uv run --frozen python -m homeproxy.models.schema >"$root/frontend/api/schema.json"
+)
+cd "$root/frontend"
+pnpm install --frozen-lockfile
+pnpm exec openapi-typescript api/openapi.json -o api/schema.d.ts

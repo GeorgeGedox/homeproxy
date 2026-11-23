@@ -1,0 +1,12 @@
+    # The source is the real client, from the connection or from the SNI layer's PROXY header.
+    # The rules match fe_https, keyed by the same backend names.
+    tcp-request content set-var(txn.country) src,map_ip(country.map)
+    tcp-request content unset-var(txn.country) if { var(txn.country) -m str ZZ }
+{% if crowdsec %}
+    # The LAN, the allowlist and Cloudflare's edge on a route it proxies are never checked. A raw
+    # connection cannot show a ban or captcha page, so either decision refuses it.
+    tcp-request content send-spoe-group crowdsec crowdsec-tcp unless { src -f lan.lst } || { src -f allow.lst }{% if edge_backends %} || { src -f cloudflare.lst } { var(txn.backend) -m str{% for name in edge_backends %} {{ name | token }}{% endfor %} }{% endif +%}
+    tcp-request content reject if { var(txn.crowdsec.remediation) -m str ban captcha }
+{% endif %}
+    tcp-request content reject if { var(txn.backend),concat(/,txn.country),map_str_int(country-block.map) -m found } !{ src -f lan.lst }
+    tcp-request content reject if { var(txn.backend),map_str_int(lan-only.map) -m found } !{ src -f lan.lst }

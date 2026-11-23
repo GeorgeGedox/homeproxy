@@ -1,0 +1,31 @@
+# Production stack: one container on the host network. Copy this file to the
+# machine that runs HAProxy. See docs/install.md.
+#
+# Every value below can be set in the environment or in a `.env` file next to
+# this file. None is needed for the defaults.
+#   HOMEPROXY_IMAGE                      image to run (default homeproxy:latest)
+#   HOMEPROXY_DATA                       /data on the host: a volume name or an
+#                                        absolute path (default: volume homeproxy-data)
+#   HOMEPROXY_BOOTSTRAP_LISTEN           ip:port of the setup page before setup, and of the
+#                                        dashboard when dashboard.listen cannot be bound
+#                                        (default: port 8443 on the default route's address)
+#   HOMEPROXY_PLACEHOLDER_HTTP_PORT      port of the first-boot page before setup (default 80).
+#                                        Set it when another program holds port 80
+# After setup, the ports come from config.yaml (network.http_port, network.https_port,
+# dashboard.listen), not from this file.
+
+services:
+  homeproxy:
+    image: ${HOMEPROXY_IMAGE:-homeproxy:latest}
+    # HAProxy must see the real client address, and it binds the ports in config.yaml.
+    network_mode: host
+    # HAProxy needs NET_BIND_SERVICE, which Docker grants by default. Do not drop it.
+    environment:
+      HOMEPROXY_BOOTSTRAP_LISTEN: "${HOMEPROXY_BOOTSTRAP_LISTEN:-}"
+      HOMEPROXY_PLACEHOLDER_HTTP_PORT: "${HOMEPROXY_PLACEHOLDER_HTTP_PORT:-80}"
+    volumes:
+      - ${HOMEPROXY_DATA:-homeproxy-data}:/data
+    restart: unless-stopped
+
+volumes:
+  homeproxy-data:

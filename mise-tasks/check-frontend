@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+#MISE description="Frontend: ESLint, tsc, Vitest"
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}/frontend"
+pnpm install --frozen-lockfile
+pnpm run lint
+pnpm run typecheck
+pnpm run test

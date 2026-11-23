@@ -1,0 +1,6 @@
+# Test hashes only.
+version: 1
+session_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="
+basic_auth:
+  plain:
+    bob: "$6$bobsalt$0ayWbOvdpplHpxhb32EQ6IlDPHCjv7U1gh18r88FYW2UYyRurowntIrZYaeBgHKXgxmOEl1wLBOVgEHs0XiPz/"

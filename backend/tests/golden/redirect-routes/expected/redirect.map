@@ -1,0 +1,2 @@
+route-old-wiki 308|0|https://wiki.example.net/start?from=old-wiki
+route-www 301|1|https://example.com

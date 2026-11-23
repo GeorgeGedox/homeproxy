@@ -1,0 +1,4 @@
+# The secrets every golden case uses, unless the case has its own input/basic-auth.yaml. No file
+# here is named secrets.yaml, because .gitignore keeps every secrets.yaml out of git.
+version: 1
+session_key: "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA="

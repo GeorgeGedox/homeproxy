@@ -1,0 +1,7 @@
+version: 1
+name: tcp
+type: tcp
+listen_port: 25565
+exposure: public
+upstreams:
+  - address: 192.168.1.24:25565

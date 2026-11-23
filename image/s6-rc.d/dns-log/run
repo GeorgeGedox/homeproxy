@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stores the DNS server's output.
+exec /etc/s6-overlay/scripts/service-log dns

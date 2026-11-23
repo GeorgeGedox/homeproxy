@@ -1,0 +1,41 @@
+#!/usr/bin/env bash
+#MISE description="Lint workflows, shell scripts and Dockerfiles"
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+# Each linter runs only when it has input files, so the task works on a young tree.
+if compgen -G ".github/workflows/*.y*ml" >/dev/null; then
+  echo "actionlint"
+  actionlint
+fi
+
+# Shell scripts: *.sh and mise-tasks/*. Skip files with a non-shell shebang.
+scripts=()
+while IFS= read -r file; do
+  first=$(head -n 1 "$file")
+  if [[ $first == '#!'* && ! $first =~ ^'#!'.*(sh|bash)( |$) ]]; then
+    continue
+  fi
+  scripts+=("$file")
+done < <(git ls-files '*.sh' 'mise-tasks/*')
+if [ "${#scripts[@]}" -gt 0 ]; then
+  echo "shellcheck"
+  shellcheck "${scripts[@]}"
+fi
+
+# The image scripts and the s6 run scripts have a with-contenv shebang that
+# linter does not know, so they are checked as bash.
+image_scripts=()
+while IFS= read -r file; do
+  image_scripts+=("$file")
+done < <(git ls-files 'image/scripts/*' 'image/s6-rc.d/*/run' 'image/dev/make-seed' 'image/dev/api-run')
+if [ "${#image_scripts[@]}" -gt 0 ]; then
+  echo "shellcheck (image scripts)"
+  shellcheck -s bash "${image_scripts[@]}"
+fi
+
+mapfile -t dockerfiles < <(git ls-files '*Dockerfile*')
+if [ "${#dockerfiles[@]}" -gt 0 ]; then
+  echo "hadolint"
+  hadolint "${dockerfiles[@]}"
+fi

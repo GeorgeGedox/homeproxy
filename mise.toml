@@ -1,0 +1,18 @@
+# Pinned development tools. Run `mise install` after changing this file.
+# Python libraries live in backend/pyproject.toml (uv) and Node libraries in
+# frontend/package.json (pnpm). Update these pins in a dedicated commit.
+[tools]
+python = "3.13.18" # same minor version as the Debian trixie base of haproxy:3.4
+uv = "0.13.7"
+node = "24.22.2" # build time only
+pnpm = "12.18.0"
+hadolint = "2.15.1"
+shellcheck = "0.11.0"
+actionlint = "1.7.12"
+gitleaks = "8.30.1"
+yq = "4.54.2"
+
+# Names the dev stack (homeproxy_*), the image tag the tests use (homeproxy:homeproxy)
+# and every integration test resource (homeproxy-test*).
+[env]
+COMPOSE_PROJECT_NAME = "homeproxy"

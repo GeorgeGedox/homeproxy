@@ -1,0 +1,8 @@
+version: 1
+name: disabled
+type: http
+hosts: [disabled.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.21:8080
+enabled: false

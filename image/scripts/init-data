@@ -1,0 +1,88 @@
+#!/command/with-contenv bash
+# Prepare /data and /run before the services start. Runs once as root.
+# Idempotent: it never overwrites existing data and never recurses into a
+# volume that already belongs to the service user.
+set -euo pipefail
+
+user=homeproxy
+data=/data
+
+# Directories from the PLAN data contract. Secret-bearing ones are private.
+public_dirs=(config pending history audit releases certs geoip state)
+private_dirs=(secrets acme tls crowdsec)
+
+install -d -o "$user" -g "$user" -m 0755 "$data"
+if [ "$(stat -c %u "$data")" != "$(id -u "$user")" ]; then
+  chown -R "$user:$user" "$data"
+fi
+for d in "${public_dirs[@]}"; do
+  install -d -o "$user" -g "$user" -m 0755 "$data/$d"
+done
+for d in "${private_dirs[@]}"; do
+  install -d -o "$user" -g "$user" -m 0700 "$data/$d"
+done
+# Stored logs hold client addresses and URLs. The loggers start after this and need their
+# directory, or they only pass lines on to the container log.
+for d in logs logs/access logs/haproxy logs/api logs/dns logs/spoa; do
+  install -d -o "$user" -g "$user" -m 0700 "$data/state/$d"
+done
+
+# Socket directories live on tmpfs, so they are recreated on every start.
+for d in /run/haproxy /run/homeproxy /run/crowdsec-spoa; do
+  install -d -o "$user" -g "$user" -m 0750 "$d"
+done
+
+# An apply that was cut short leaves generated.prev, the last promoted release.
+# Switch back to it, so HAProxy never boots on a release nobody confirmed. Keep
+# the current release when the promote already began, because /data/config then
+# holds the edits of that release. A dangling link is dropped. Both steps are
+# renames or removals, so a crash here repeats them on the next boot.
+if [ -L "$data/generated.prev" ]; then
+  if grep -q '"promoting": true' "$data/pending/manifest.json" 2>/dev/null \
+    || [ ! -d "$data/$(readlink "$data/generated.prev")" ]; then
+    rm -f "$data/generated.prev"
+  else
+    mv -T "$data/generated.prev" "$data/generated"
+    echo "init-data: an apply was cut short, switched back to $(readlink "$data/generated")"
+  fi
+fi
+
+# First boot: seed the placeholder as a release and point /data/generated at it.
+# A dangling symlink counts as missing. The symlink is relative and swapped
+# with a rename, like every later release.
+if [ ! -e "$data/generated" ]; then
+  release="$data/releases/placeholder"
+  if [ ! -d "$release" ]; then
+    rm -rf "$release.tmp"
+    cp -r /opt/homeproxy/placeholder "$release.tmp"
+    chown -R "$user:$user" "$release.tmp"
+    mv -T "$release.tmp" "$release"
+  fi
+  ln -sfn releases/placeholder "$data/generated.tmp"
+  chown -h "$user:$user" "$data/generated.tmp"
+  mv -T "$data/generated.tmp" "$data/generated"
+  echo "init-data: seeded placeholder release"
+fi
+
+# HAProxy cannot start without default.pem, because the generated config names
+# it through `crt /data/certs/`, and it must not wait for the API to make it.
+# Keep key type, subject and lifetime equal to
+# homeproxy.generator.ensure_default_certificate. HAProxy ignores dot-prefixed
+# names, so a crash before the rename leaves nothing it would load.
+default_pem="$data/certs/default.pem"
+if [ ! -e "$default_pem" ]; then
+  tmp="$data/certs/.default.pem.tmp"
+  rm -f "$tmp"
+  (
+    umask 077
+    openssl req -x509 -newkey ec -pkeyopt ec_paramgen_curve:P-256 -nodes \
+      -keyout "$tmp.key" -out "$tmp.crt" -days 3650 \
+      -subj "/CN=HomeProxy default certificate" 2>/dev/null
+    cat "$tmp.crt" "$tmp.key" >"$tmp"
+    rm -f "$tmp.crt" "$tmp.key"
+  )
+  chown "$user:$user" "$tmp"
+  sync "$tmp"
+  mv -T "$tmp" "$default_pem"
+  echo "init-data: created default certificate"
+fi

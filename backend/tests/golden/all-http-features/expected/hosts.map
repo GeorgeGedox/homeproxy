@@ -1,0 +1,3 @@
+admin.example.com route-admin
+jellyfin.example.com route-jellyfin
+media.example.net route-jellyfin

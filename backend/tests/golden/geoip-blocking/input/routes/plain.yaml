@@ -1,0 +1,8 @@
+# Public, with only the global list.
+version: 1
+name: plain
+type: http
+hosts: [plain.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.21:8080

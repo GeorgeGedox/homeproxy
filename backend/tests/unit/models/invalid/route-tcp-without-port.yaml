@@ -1,0 +1,7 @@
+# A tcp route listens on its own port.
+version: 1
+name: app
+type: tcp
+exposure: lan
+upstreams:
+  - address: 192.168.1.20:2222

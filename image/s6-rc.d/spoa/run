@@ -1,0 +1,23 @@
+#!/bin/bash
+# CrowdSec SPOA bouncer. It stays down until an apply with CrowdSec enabled
+# writes /data/crowdsec/spoa.yaml. When an apply changes or removes that file,
+# the API stops the bouncer through the pid file, and s6 runs this script
+# again. HAProxy never waits for the bouncer: without an answer, requests go
+# through.
+set -euo pipefail
+# The logger service (spoa-log) reads stdout only, so stderr goes there too.
+exec 2>&1
+
+config=/data/crowdsec/spoa.yaml
+pid_file=/run/crowdsec-spoa/spoa.pid
+
+rm -f "$pid_file"
+while [ ! -e "$config" ]; do
+  sleep 2
+done
+# exec keeps this pid, so the file names the bouncer itself.
+echo "$$" >"$pid_file"
+# An empty environment: the bouncer expands $NAME in its config, and a key may
+# hold a `$`.
+exec env -i /command/s6-setuidgid homeproxy \
+  /usr/local/bin/crowdsec-spoa-bouncer -c "$config"

@@ -1,0 +1,12 @@
+#!/usr/bin/env bash
+#MISE description="Playwright tests: mocked API for error states, and real flows through the built image"
+#MISE depends=["api-client", "image"]
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}/frontend"
+pnpm exec playwright install chromium
+# The mocked suite serves the dashboard the image ships, so it tests that build and does not make another.
+rm -rf .output/public && mkdir -p .output
+container=$(docker create "homeproxy:${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is set by mise.toml}")
+trap 'docker rm "$container" >/dev/null' EXIT
+docker cp --quiet "$container:/opt/homeproxy/ui" .output/public
+pnpm run test:e2e

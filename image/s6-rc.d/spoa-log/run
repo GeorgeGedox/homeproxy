@@ -1,0 +1,3 @@
+#!/bin/bash
+# Stores the CrowdSec bouncer's output.
+exec /etc/s6-overlay/scripts/service-log spoa

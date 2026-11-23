@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+#MISE description="Rewrite the expected files of every golden case. Review the diff"
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}/backend"
+uv sync --frozen
+HOMEPROXY_GOLDEN_UPDATE=1 uv run --frozen pytest tests/golden/test_golden.py
+echo "Golden files updated. Review the diff before you commit it."

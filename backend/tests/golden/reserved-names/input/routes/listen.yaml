@@ -1,0 +1,7 @@
+version: 1
+name: listen
+type: http
+hosts: [host-7.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8080
