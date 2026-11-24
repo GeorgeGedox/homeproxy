@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test, type Reply } from "./fixtures";
 
 // The editor's normal flows run in tests/real. These need a failure or GeoIP data a real, offline stack does not have.
 type Route = Record<string, unknown> & { name: string };
@@ -19,7 +19,7 @@ interface MockState {
 async function mockApi(page: Page): Promise<MockState> {
   const state: MockState = { routes: [], posted: [], put: [], usersBody: undefined, usersFail: false, usersLoadFail: false };
   const refused = (message: string): [number, unknown] => [500, { error: { code: "internal", message } }];
-  const handlers: Record<string, (name: string, body: Route) => [number, unknown?]> = {
+  const handlers: Record<string, (name: string, body: Route) => Reply> = {
     "GET /auth/me": () => [200, { authenticated: true }],
     "GET /changes": () => [200, { changes: [] }],
     "POST /routes/validate": () => [200, { errors: [], warnings: [] }],
@@ -51,13 +51,10 @@ async function mockApi(page: Page): Promise<MockState> {
       return [200, { users: [] }];
     },
   };
-  await page.route("**/api/v1/**", (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname.replace("/api/v1", "");
+  await routeApi<Route>(page, (method, path, body) => {
     const [, , name] = path.split("/");
     const shape = ["validate", "warnings"].includes(name ?? "") ? path : path.replace(`/${name}`, "/:name");
-    const [status, data] = handlers[`${request.method()} ${shape}`]?.(name ?? "", request.postDataJSON()) ?? [404, {}];
-    return route.fulfill({ status, contentType: "application/json", body: data ? JSON.stringify(data) : "" });
+    return handlers[`${method} ${shape}`]?.(name ?? "", body);
   });
   return state;
 }

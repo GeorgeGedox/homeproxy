@@ -1,20 +1,17 @@
 import { readdirSync, readFileSync } from "node:fs";
-import { expect, test } from "./fixtures";
-
-const json = (status: number, body: unknown) => ({ status, contentType: "application/json", body: JSON.stringify(body) });
+import { expect, routeApi, test } from "./fixtures";
 
 // Sign-in, logout and the phone layout run in tests/real. These need a session that runs out mid-page,
 // an API that does not answer, or a check of every request the page makes.
 test("a session that runs out mid-page sends the admin to log in, where a wrong password still says so", async ({ page }) => {
   let expired = false;
-  await page.route("**/api/v1/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/setup/status")) return route.fulfill(json(200, { setup_required: false }));
-    if (path.endsWith("/auth/me")) return route.fulfill(expired ? json(401, {}) : json(200, { authenticated: true }));
-    if (path.endsWith("/auth/login")) return route.fulfill(json(401, { error: { code: "invalid_password", message: "The password is wrong." } }));
+  await routeApi(page, (_, path) => {
+    if (path === "/setup/status") return [200, { setup_required: false }];
+    if (path === "/auth/me") return expired ? [401, {}] : [200, { authenticated: true }];
+    if (path === "/auth/login") return [401, { error: { code: "invalid_password", message: "The password is wrong." } }];
     // The session runs out after the guard let the page in: its first data request is refused.
     expired = true;
-    return route.fulfill(json(401, { error: { code: "unauthorized", message: "Log in to continue." } }));
+    return [401, { error: { code: "unauthorized", message: "Log in to continue." } }];
   });
   await page.goto("/routes");
   await expect(page).toHaveURL(/\/login$/);
@@ -44,11 +41,7 @@ test("renders dark only, offers no theme toggle and stays on the origin", async 
     const url = req.url();
     if (!url.startsWith(appURL) && !url.startsWith("data:") && !url.startsWith("blob:")) foreign.push(url);
   });
-  await page.route("**/api/v1/**", (route) => {
-    const path = new URL(route.request().url()).pathname;
-    if (path.endsWith("/auth/me")) return route.fulfill(json(200, { authenticated: true }));
-    return route.fulfill(json(404, {}));
-  });
+  await routeApi(page, (_, path) => (path === "/auth/me" ? [200, { authenticated: true }] : undefined));
   await page.emulateMedia({ colorScheme: "light" });
   await page.goto("/");
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();

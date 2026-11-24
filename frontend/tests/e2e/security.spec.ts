@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test } from "./fixtures";
 
 const soon = new Date(Date.now() + 3 * 3600_000).toISOString();
 const decision = (id: number, value: string, origin: string) => ({ id, value, origin, type: "ban", scope: "Ip", scenario: "crowdsecurity/ssh-bf", expires_at: soon });
@@ -9,17 +9,16 @@ const geoip = { provider: "dbip-lite", block_countries: [], data: null, attribut
 
 /** The Security page's API with CrowdSec on: `extra` replies win, keyed "METHOD /path". */
 async function mockSecurity(page: Page, extra: Record<string, (body: unknown) => unknown> = {}) {
-  await page.route("**/api/v1/**", (request) => {
-    const req = request.request();
-    const path = new URL(req.url()).pathname.replace("/api/v1", "");
-    const key = `${req.method()} ${path}`;
+  await routeApi(page, (method, path, body) => {
+    const key = `${method} ${path}`;
     const defaults: Record<string, unknown> = {
       "GET /auth/me": { authenticated: true }, "GET /security/allowlist": [], "GET /geoip": geoip, "GET /jobs": [],
       "GET /changes": { changes: [], summary: [] }, "GET /status": { bouncer: "up" },
     };
     const handler = extra[key];
-    const reply = handler ? handler(req.postDataJSON()) : defaults[key];
-    return request.fulfill({ status: reply === undefined ? 404 : 200, contentType: "application/json", body: reply === null ? "" : JSON.stringify(reply ?? {}) });
+    const reply = handler ? handler(body) : defaults[key];
+    // A null reply is an empty 200.
+    return reply === undefined ? undefined : [200, reply ?? undefined];
   });
 }
 

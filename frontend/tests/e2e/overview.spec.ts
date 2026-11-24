@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test } from "./fixtures";
 
 interface Mock {
   /** The last certificate issue failed. */
@@ -29,11 +29,7 @@ async function mockApi(page: Page, mock: Mock = {}): Promise<void> {
       ? [{ id: "j1", kind: "certificate.issue", subject: "example.com", state: "failed", error: "DNS challenge timed out", created_at: "2026-11-22T10:00:00Z" }]
       : [],
   };
-  await page.route("**/api/v1/**", (route) => {
-    const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
-    const body = replies[path];
-    return route.fulfill({ status: body === undefined ? 404 : 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
-  });
+  await routeApi(page, (_, path) => (path in replies ? [200, replies[path]] : undefined));
 }
 
 test("the overview shows route health, certificate expiry, the DNS uptime and your own bans", async ({ page }) => {

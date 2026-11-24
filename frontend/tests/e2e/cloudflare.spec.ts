@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test, type Reply } from "./fixtures";
 
 const route = {
   name: "app", type: "http", hosts: ["app.example.com"], exposure: "public", enabled: true,
@@ -8,7 +8,7 @@ const route = {
 };
 
 /** The domain, apply and Cloudflare replies of the mock: status and body. */
-function applyAndCloudflare(key: string, changes: unknown[]): [number, unknown] {
+function applyAndCloudflare(key: string, changes: unknown[]): Reply | undefined {
   const zones = [{ zone: "example.com", changes, conflicts: [], errors: [], records: [] }];
   const replies: Record<string, unknown> = {
     "GET /domains": [{ zone: "example.com", cloudflare_off_reason: null }],
@@ -16,39 +16,36 @@ function applyAndCloudflare(key: string, changes: unknown[]): [number, unknown] 
     "POST /apply": { success: true, stage: "done", errors: [], warnings: [], certificate_jobs: [], cloudflare_job: "cf1" },
     "GET /jobs/cf1": { id: "cf1", kind: "cloudflare.reconcile", state: "finished", created_at: "2026-11-10T10:00:00Z" },
   };
-  return key in replies ? [200, replies[key]] : [404, {}];
+  return key in replies ? [200, replies[key]] : undefined;
 }
 
 /** A mock backend where the route's `cloudflare.dns` flag is pending until an apply makes it live. */
 async function mockApi(page: Page) {
   let wanted = false;
   let live = false;
-  const json = (status: number, body?: unknown) => ({ status, contentType: "application/json", body: body === undefined ? "" : JSON.stringify(body) });
   const zoneChange = () => {
     if (wanted === live) return [];
     return [{ action: wanted ? "create" : "delete", name: "app.example.com", content: "home.example.com", route: "app", proxied: false }];
   };
-  await page.route("**/api/v1/**", (request) => {
-    const req = request.request();
-    const path = new URL(req.url()).pathname.replace("/api/v1", "");
-    const key = `${req.method()} ${path}`;
-    if (path === "/auth/me") return request.fulfill(json(200, { authenticated: true }));
-    if (path === "/settings") return request.fulfill(json(200, { cloudflare: { enabled: true }, dns_server: { listen: "192.168.1.10:5335" } }));
-    if (key === "GET /routes") return request.fulfill(json(200, [{ ...route, cloudflare: { dns: wanted, proxied: null } }]));
+  await routeApi<{ cloudflare_dns: boolean }>(page, (method, path, body) => {
+    const key = `${method} ${path}`;
+    if (path === "/auth/me") return [200, { authenticated: true }];
+    if (path === "/settings") return [200, { cloudflare: { enabled: true }, dns_server: { listen: "192.168.1.10:5335" } }];
+    if (key === "GET /routes") return [200, [{ ...route, cloudflare: { dns: wanted, proxied: null } }]];
     if (key === "PUT /routes/hosts/app.example.com") {
-      wanted = req.postDataJSON().cloudflare_dns;
-      return request.fulfill(json(200, { routes: [], warnings: [] }));
+      wanted = body.cloudflare_dns;
+      return [200, { routes: [], warnings: [] }];
     }
     if (key === "GET /changes") {
       const pending = wanted !== live;
-      return request.fulfill(json(200, {
+      return [200, {
         changes: pending ? [{ path: "routes/app.yaml", kind: "write" }] : [], conflict: false, conflicting_paths: [],
         summary: pending ? [{ kind: "route", action: "changed", label: "app.example.com" }] : [],
         config_diff: pending ? "+cloudflare" : "", generated_diff: "", generated_error: null,
-      }));
+      }];
     }
     if (key === "POST /apply") live = wanted;
-    return request.fulfill(json(...applyAndCloudflare(key, zoneChange())));
+    return applyAndCloudflare(key, zoneChange());
   });
 }
 
@@ -83,13 +80,12 @@ async function mockCloudflarePage(page: Page, state: object, extra: Record<strin
     "GET /jobs": [],
     ...extra,
   };
-  await page.route("**/api/v1/**", (request) => {
-    const req = request.request();
-    const key = `${req.method()} ${new URL(req.url()).pathname.replace("/api/v1", "")}`;
+  await routeApi(page, (method, path) => {
+    const key = `${method} ${path}`;
     calls[key] = (calls[key] ?? 0) + 1;
     const reply = replies[key];
     const body = typeof reply === "function" ? reply(calls[key]) : reply;
-    return request.fulfill({ status: body === undefined ? 404 : 200, contentType: "application/json", body: JSON.stringify(body ?? {}) });
+    return body === undefined ? undefined : [200, body];
   });
   return calls;
 }
