@@ -141,6 +141,7 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 - Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions or work that needs a review. Put `Closes #N` in the PR description. The PR is squashed, so the keyword reaches `main` in the squash commit.
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`.
+- Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 
