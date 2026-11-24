@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+#MISE description="Print what the commits since the last release call for: none, patch, minor or breaking"
+# fix gives patch, feat gives minor, and `!` or BREAKING CHANGE gives breaking, which the
+# maintainer releases by hand. Other types (chore, docs, ci, test, refactor) release nothing.
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+last=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+range=${last:+$last..}HEAD
+subjects=$(git log "$range" --no-merges --format=%s | grep -v '^chore(release)' || true)
+
+if printf '%s\n' "$subjects" | grep -qE '^[a-z]+(\([^)]*\))?!:' \
+  || git log "$range" --no-merges --format=%B | grep -q '^BREAKING[ -]CHANGE:'; then
+  echo breaking
+elif printf '%s\n' "$subjects" | grep -qE '^feat(\([^)]*\))?:'; then
+  echo minor
+elif printf '%s\n' "$subjects" | grep -qE '^fix(\([^)]*\))?:'; then
+  echo patch
+else
+  echo none
+fi

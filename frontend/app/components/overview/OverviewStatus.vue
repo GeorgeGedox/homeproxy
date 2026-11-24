@@ -14,9 +14,9 @@ function haproxy(): Cell {
   if (!version) return { label: "HAProxy", tone: "down", value: "Not answering" };
   const check = s.version_check;
   const value = `${version}${s.haproxy_uptime_seconds === null ? "" : ` · up ${duration(s.haproxy_uptime_seconds)}`}`;
-  const eol = check?.eol ? `LTS until ${monthYear(check.eol)}` : undefined;
-  if (check?.update_available) return { label: "HAProxy", tone: "up", value, meta: `${check.latest} available${eol ? ` · ${eol}` : ""}`, warn: true };
-  return { label: "HAProxy", tone: "up", value, meta: eol };
+  // Information only: a newer HAProxy comes with a HomeProxy release, which the HomeProxy cell reports.
+  const meta = [check && `Latest ${check.latest}`, check?.eol && `LTS until ${monthYear(check.eol)}`].filter(Boolean).join(" · ");
+  return { label: "HAProxy", tone: "up", value, meta: meta || undefined };
 }
 
 function homeproxy(): Cell {

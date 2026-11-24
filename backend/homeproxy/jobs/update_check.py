@@ -30,7 +30,9 @@ KIND = "homeproxy.update-check"
 INTERVAL = timedelta(days=1)
 FETCH_TIMEOUT = 15.0
 NOTIFIED_FILE = Path("state") / "notified-homeproxy-version"
-"""The newest version a target got a `new_version` message for, as for the HAProxy check."""
+"""The newest version a target got a `new_version` message for, so a restart does not repeat it.
+It is written only after a target accepted the message, so a target added later still hears of the
+current version."""
 
 # The tag goes into a chat message, so only a plain `vX.Y.Z` is accepted.
 _VERSION = re.compile(r"v?([0-9]{1,4})\.([0-9]{1,4})\.([0-9]{1,4})")

@@ -1,4 +1,4 @@
-"""The version check reports a newer LTS patch, using a local stand-in for endoflife.date."""
+"""The version check finds the newest LTS patch, using a local stand-in for endoflife.date."""
 
 import json
 import threading
@@ -80,25 +80,14 @@ def url(server: EndOfLife) -> str:
     return f"http://{host!s}:{port}/api/v1/products/haproxy/"
 
 
-@pytest.mark.parametrize(
-    ("running", "update_available"),
-    [
-        ("3.4.7-8872a26", True),
-        ("3.4.9-1a2b3c4", False),
-        ("3.6-dev1", False),
-    ],
-)
-def test_status_reports_newer_patch_of_newest_lts(
-    endoflife: EndOfLife, running: str, update_available: bool
-) -> None:
-    check = VersionCheck(lambda: running, url(endoflife))
+def test_status_reports_the_newest_patch_of_the_newest_lts(endoflife: EndOfLife) -> None:
+    check = VersionCheck(lambda: "3.4.7-8872a26", url(endoflife))
     check.run()
     assert check.status is not None
-    assert check.status.running == running
+    assert check.status.running == "3.4.7-8872a26"
     assert check.status.branch == "3.4"
     assert check.status.latest == "3.4.9"
     assert check.status.eol == date(2031, 4, 1)
-    assert check.status.update_available is update_available
 
 
 @pytest.mark.parametrize(
@@ -108,7 +97,7 @@ def test_status_reports_newer_patch_of_newest_lts(
         (200, b"<html>not json</html>"),
         (200, json.dumps({"result": {"releases": [{"name": "3.4"}]}}).encode()),
         (200, json.dumps({"result": {"releases": []}}).encode()),
-        (200, json.dumps(RELEASES).replace("3.4.9", "latest").encode()),
+        (200, json.dumps(RELEASES).replace("3.4.9", "3.4.9<b>").encode()),
         (200, None),
     ],
     ids=["http-error", "not-json", "missing-fields", "no-lts", "bad-version", "cut-short"],
@@ -149,6 +138,5 @@ def test_schedule_runs_the_check_at_once_as_a_job(endoflife: EndOfLife) -> None:
             (KIND, JobState.FINISHED)
         ]
         assert check.status is not None
-        assert check.status.update_available
     finally:
         runner.shutdown(wait=True)

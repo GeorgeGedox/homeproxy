@@ -4,7 +4,7 @@ A self-hosted reverse proxy manager for home labs. One container bundles HAProxy
 
 HAProxy does all the proxying. The dashboard writes its config and talks to its sockets, so traffic keeps flowing on the last good config if the dashboard stops.
 
-> **Status: pre-release.** Releases publish an amd64 image. HomeProxy runs one real home lab so far, so expect rough edges.
+> **Status: pre-release.** Releases publish an image for amd64 and arm64. HomeProxy runs one real home lab so far, so expect rough edges.
 
 ## Who it is for
 
@@ -35,7 +35,7 @@ You need a Linux machine with Docker Engine, the Compose plugin and a fixed LAN 
 | Routes | [Route types](docs/route-types.md), [Basic auth](docs/basic-auth.md) |
 | Certificates and DNS | [Certificates](docs/certificates.md), [Internal DNS](docs/internal-dns.md), [Cloudflare DNS](docs/cloudflare-dns.md), [Real client IP](docs/real-client-ip.md) |
 | Protection | [CrowdSec](docs/crowdsec.md), [GeoIP](docs/geoip.md) |
-| Operation | [Changes and apply](docs/changes-and-apply.md), [Overview and status](docs/overview-and-status.md), [Dashboard access](docs/dashboard-access.md), [Notifications](docs/notifications.md), [Metrics and logs](docs/metrics-and-logs.md), [Prometheus](docs/prometheus.md) |
+| Operation | [Changes and apply](docs/changes-and-apply.md), [Overview and status](docs/overview-and-status.md), [Dashboard access](docs/dashboard-access.md), [Notifications](docs/notifications.md), [Metrics and logs](docs/metrics-and-logs.md), [Prometheus](docs/prometheus.md), [Releases and updates](docs/releases.md) |
 
 ## Feedback and contributions
 

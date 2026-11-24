@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Bump the version (major, minor or patch) and print the release steps"
+#MISE description="Bump the version (major, minor or patch), write the release PR description and print the release steps"
 #USAGE arg "<kind>" help="major, minor or patch"
 set -euo pipefail
 cd "${MISE_PROJECT_ROOT:?}"
@@ -14,14 +14,24 @@ if [ -n "$(git status --porcelain)" ]; then
   echo "the working tree has changes; commit or stash them first" >&2
   exit 1
 fi
+# The release workflow creates the tags on GitHub; the notes start after the last one.
+git fetch --quiet --tags origin
 
 (cd backend && uv version --bump "$kind")
 version=$(cd backend && uv version --short)
+body=$(git rev-parse --git-path RELEASE_PR_BODY)
+mise run --quiet release-notes --closes > "$body"
+
 cat <<EOF
 
-Bumped to $version. Next:
-  git commit -am "chore(release): v$version"
+Bumped to $version. The release PR description, with the notes the release will get, is in $body:
+$(sed 's/^/  /' "$body")
+
+Next:
+  git commit -s -am "chore(release): v$version"
   git push origin dev
-  gh pr create --base main --head dev --label release --title "chore(release): v$version" --body ""
+  gh pr create --base main --head dev --label release --title "chore(release): v$version" --body-file $body
 Merge the release PR with a merge commit. The merge publishes v$version.
+After a later push to dev, refresh the description:
+  mise run release-notes --closes > $body && gh pr edit <number> --body-file $body
 EOF

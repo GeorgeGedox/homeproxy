@@ -1,26 +1,77 @@
 name: release
 
-# A merge into main publishes the version in backend/pyproject.toml: the amd64
-# image to GHCR as X.Y.Z and latest, then the GitHub release vX.Y.Z, which the
-# HomeProxy update check reads. Only a release PR from dev can change main, and
-# its required checks ran the full test suite. One workflow creates the tag and
-# publishes, because a tag that GITHUB_TOKEN creates starts no other workflow.
+# A merge into main publishes the version in backend/pyproject.toml. Read-only jobs build each
+# architecture on its own native runner and test that image; the publish job then pushes exactly
+# those images as one multi-arch image, attests it, and creates the GitHub release vX.Y.Z, which
+# the HomeProxy update check reads. The publish job runs no mise and installs nothing, because it
+# holds the write permissions. One workflow tags and publishes, because a tag that GITHUB_TOKEN
+# creates starts no other workflow.
 on:
   push:
     branches: [main]
 
 permissions:
-  contents: write
-  packages: write
+  contents: read
 
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
+  notes:
     runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    timeout-minutes: 10
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      publish: ${{ steps.version.outputs.publish }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # The release notes need the commits and tags since the last release.
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: Read the version
+        id: version
+        run: |
+          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if git rev-parse --verify --quiet "refs/tags/v$version" >/dev/null; then
+            echo "v$version is already released; nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Write the release notes
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise run --quiet release-notes > notes.md
+      - if: steps.version.outputs.publish == 'true'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: notes
+          path: notes.md
+
+  build:
+    needs: notes
+    if: needs.notes.outputs.publish == 'true'
+    strategy:
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+            suites: true
+          # The integration and end-to-end suites run on amd64 only until they are proven on the
+          # arm64 runner. arm64 gets the smoke test.
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            suites: false
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -28,38 +79,65 @@ jobs:
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.9.7
-      - name: Read the version
-        id: version
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "v$version is already released; nothing to publish"
-            echo "publish=false" >> "$GITHUB_OUTPUT"
-          else
-            echo "publish=true" >> "$GITHUB_OUTPUT"
-          fi
-      - name: Build and smoke-test the image
-        if: steps.version.outputs.publish == 'true'
+      - name: Build and smoke-test
         run: mise run image
-      - name: Push the image
-        if: steps.version.outputs.publish == 'true'
+      # Each suite builds the image again from the cache, which gives the same image.
+      - name: Integration tests
+        if: matrix.suites
+        run: mise run test-integration
+      - name: End-to-end tests
+        if: matrix.suites
+        run: mise run test-e2e
+      - name: Save the tested image
+        run: docker save "homeproxy:$(mise exec -- printenv COMPOSE_PROJECT_NAME)" | gzip > image.tar.gz
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: image-${{ matrix.arch }}
+          path: image.tar.gz
+          retention-days: 1
+
+  publish:
+    needs: [notes, build]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      packages: write
+      attestations: write
+      id-token: write
+    steps:
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+      - name: Push the images
+        id: push
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
+          VERSION: ${{ needs.notes.outputs.version }}
         run: |
-          src="homeproxy:$(mise exec -- printenv COMPOSE_PROJECT_NAME)"
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for tag in "$VERSION" latest; do
-            docker tag "$src" "$repo:$tag"
-            docker push "$repo:$tag"
+          sources=()
+          for arch in amd64 arm64; do
+            loaded=$(gunzip -c "image-$arch/image.tar.gz" | docker load | sed -n 's/^Loaded image: //p')
+            docker tag "$loaded" "$repo:$VERSION-$arch"
+            docker push "$repo:$VERSION-$arch"
+            sources+=("$repo:$VERSION-$arch")
           done
+          # X.Y.Z, X.Y and latest; X from 1.0. A released X.Y.Z is never pushed again.
+          tags=(-t "$repo:$VERSION" -t "$repo:${VERSION%.*}" -t "$repo:latest")
+          if [ "${VERSION%%.*}" != 0 ]; then
+            tags+=(-t "$repo:${VERSION%%.*}")
+          fi
+          docker buildx imagetools create "${tags[@]}" "${sources[@]}"
+          digest=$(docker buildx imagetools inspect "$repo:$VERSION" --format '{{json .Manifest}}' | jq -r .digest)
+          echo "name=$repo" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+      - uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ steps.push.outputs.name }}
+          subject-digest: ${{ steps.push.outputs.digest }}
+          push-to-registry: true
       - name: Create the GitHub release
-        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes
+          VERSION: ${{ needs.notes.outputs.version }}
+        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" --notes-file notes/notes.md

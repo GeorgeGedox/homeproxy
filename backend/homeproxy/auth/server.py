@@ -37,6 +37,7 @@ from homeproxy.auth.setup_token import announce
 from homeproxy.auth.sources import SourcePolicy, private_policy
 from homeproxy.auth.tls import ensure_certificate, fingerprint
 from homeproxy.models.fields import ListenAddress
+from homeproxy.store import StoreError, migrate_files
 from homeproxy.store.files import Store
 
 logger = logging.getLogger(__name__)
@@ -227,6 +228,26 @@ def build_config(
     )
 
 
+def migrate_config(store: Store) -> None:
+    """Bring the config files up to this release's version, before anything reads them.
+
+    A failure is logged and the dashboard still starts, so the admin can see it. A file newer
+    than this release, as after a rollback, is one such failure.
+    """
+    try:
+        with store.lock() as held:
+            migrated = migrate_files(store, held)
+    except (OSError, StoreError) as error:
+        logger.error("cannot migrate the config files: %s", error)
+        return
+    if migrated:
+        logger.info(
+            "migrated %d config files; the originals are in %s",
+            len(migrated),
+            store.migration_backups_dir,
+        )
+
+
 def serve(environ: Mapping[str, str] | None = None) -> None:
     """Run the dashboard until it is stopped. Raises `ServerConfigError` on bad settings."""
     # The runtime builds a `ListenChange`, which uses this module, so import it late.
@@ -235,6 +256,7 @@ def serve(environ: Mapping[str, str] | None = None) -> None:
     env = os.environ if environ is None else environ
     logging.basicConfig(level=logging.INFO, format="%(levelname)s:     %(name)s: %(message)s")
     store = Store(data_root())
+    migrate_config(store)
     plan = plan_listen(store, env)
     certificate = store.root / "tls" / "dashboard.pem"
     if ensure_certificate(certificate, [plan.host]):

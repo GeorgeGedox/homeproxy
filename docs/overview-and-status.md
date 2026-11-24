@@ -6,7 +6,7 @@ Overview is the first page after login. It answers "is anything wrong?" first, t
 
 | Block | Shows |
 | --- | --- |
-| Status strip | HAProxy with its version, uptime, a newer patch of its branch and the end of that LTS branch. The internal DNS server, and how long it has been up. The CrowdSec bouncer, `up` or `down` as HAProxy's health check sees it, or Off while CrowdSec is off (see [CrowdSec](crowdsec.md#bouncer-state)), or Unknown while HAProxy does not answer, with the active bans and captchas of your own engine and manual bans, read once a minute, and whether a community blocklist is loaded. The HomeProxy version and a newer release. When the last apply ran and whether it succeeded |
+| Status strip | HAProxy with its version, its uptime, the latest patch of the newest LTS branch and the end date of that branch. The internal DNS server, and how long it has been up. The CrowdSec bouncer, `up` or `down` as HAProxy's health check sees it, or Off while CrowdSec is off (see [CrowdSec](crowdsec.md#bouncer-state)), or Unknown while HAProxy does not answer, with the active bans and captchas of your own engine and manual bans, read once a minute, and whether a community blocklist is loaded. The HomeProxy version and a newer release. When the last apply ran and whether it succeeded |
 | Needs attention | Shown only when something is wrong: HAProxy does not answer, the last apply failed, a route is down, a certificate is close to expiry, a background job failed (such as a renewal or a DDNS update), or the DNS server or CrowdSec bouncer is down. Each line links to the page where you fix it. A job that failed and then succeeded is not listed |
 | Requests | Requests in the last 24 hours in 15-minute steps, and the number of server errors (`5xx`) |
 | Route health | One line per live route, named by its host and path: up, down or not checked, as HAProxy sees its upstreams, with the requests and `5xx` responses counted since HAProxy last reloaded. `tcp` routes show no counters |
@@ -22,7 +22,7 @@ A route that is `DOWN` is live. HAProxy serves it with an error until the upstre
 
 ### Update check
 
-When the dashboard starts, it asks endoflife.date for the newest patch of the HAProxy branch it runs, and compares it with the running version. If the lookup fails, for example without internet access, the next try is a day later, so a newer patch can be missing for up to a day after a restart. The check changes nothing. Updating means pulling or building a newer image, as in [Install](install.md).
+When the dashboard starts, it asks endoflife.date for the latest patch of the newest HAProxy LTS branch. The status strip shows it as "Latest X.Y.Z" beside the running version. This is for information only, and it sends no notification. Only a new HomeProxy release can bring a newer HAProxy. If the lookup fails, for example without internet access, the next try is a day later. The check changes nothing.
 
 HomeProxy also checks for a newer release of itself. The check runs when the dashboard starts, and then once a day. It reads the newest release on GitHub. Versions are `X.Y.Z`, and a release is tagged `vX.Y.Z`. If the check has not succeeded yet, for example without internet access, the status strip shows "Not checked yet".
 

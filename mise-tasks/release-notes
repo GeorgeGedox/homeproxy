@@ -1,0 +1,45 @@
+#!/usr/bin/env bash
+#MISE description="Print the release notes for the commits since the last release"
+#USAGE flag "--closes" help="Add a Closes line for each issue, for the release PR description"
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+# The last release is the highest v* tag. It sits on a merge commit in main, which dev does not
+# reach, so `git describe` cannot find it; the range below still excludes everything it released.
+last=$(git tag --list 'v*' --sort=-v:refname | head -n 1)
+range=${last:+$last..}HEAD
+repo=${GITHUB_REPOSITORY:-$(gh repo view --json nameWithOwner --jq .nameWithOwner)}
+version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+
+# Every change reaches dev as one commit, direct or squashed, so the subjects list every change.
+# git log runs on its own, so a failure stops the task; only an empty grep match is allowed.
+subjects=$(git log "$range" --no-merges --format=%s)
+subjects=$(printf '%s\n' "$subjects" | grep -v -e '^chore(release)' -e '^$' || true)
+bodies=$(git log "$range" --format=%B)
+
+section() {
+  local title=$1 lines=$2
+  [ -n "$lines" ] || return 0
+  printf '## %s\n\n%s\n\n' "$title" "$(printf '%s\n' "$lines" | sed 's/^/- /')"
+}
+section Features "$(printf '%s\n' "$subjects" | grep -E '^feat(\(|!|:)' || true)"
+section Fixes "$(printf '%s\n' "$subjects" | grep -E '^fix(\(|!|:)' || true)"
+section Other "$(printf '%s\n' "$subjects" | grep -vE '^(feat|fix)(\(|!|:)' || true)"
+
+issues=$(printf '%s\n' "$bodies" \
+  | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? #[0-9]+' \
+  | grep -oE '#[0-9]+' | sort -u -t'#' -k2,2n || true)
+if [ -n "$issues" ]; then
+  printf '## Issues\n\n%s\n\n' "$(printf '%s\n' "$issues" | sed 's/^/- /')"
+fi
+
+if [ -n "$last" ]; then
+  echo "Full changelog: https://github.com/$repo/compare/$last...v$version"
+else
+  echo "Full changelog: https://github.com/$repo/commits/v$version"
+fi
+
+if [ "${usage_closes:-false}" = true ] && [ -n "$issues" ]; then
+  echo
+  printf '%s\n' "$issues" | sed 's/^/Closes /'
+fi

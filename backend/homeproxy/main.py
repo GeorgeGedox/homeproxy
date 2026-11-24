@@ -89,9 +89,7 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     certificates = CertificateService.from_environ(root, client)
     services = Services(pipeline, certificates, runner, Reconcile(store), Ddns(store))
     app.state.services = services
-    app.state.version_check = VersionCheck(
-        lambda: client.show_info().version, releases_url(), store=store
-    )
+    app.state.version_check = VersionCheck(lambda: client.show_info().version, releases_url())
     app.state.update_check = UpdateCheck(update_url(), store=store)
     try:
         await run_in_threadpool(pipeline.recover)

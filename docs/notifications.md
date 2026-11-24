@@ -84,7 +84,7 @@ notifications:
 | `apply_failed` | An apply fails or rolls back. The title says at which stage | error |
 | `ddns_failed` | The DDNS update starts failing. One message is sent, and the next one only after DDNS has worked again. A restart does not repeat it. Until a target accepts the message, each failed update sends it again, so an outage that also stops the webhook does not swallow it | error |
 | `geoip_failed` | A GeoIP data refresh fails. A refresh you start sends it each time. The hourly retries send one message per run of failures, and send it again at the next failure until a target accepts it | error |
-| `new_version` | A new patch of the HAProxy LTS branch is out, or a new HomeProxy release. One message per version of each, also across restarts. The check sends it again each day until at least one target accepts it, so a target you add later still hears of the current version | info |
+| `new_version` | A new HomeProxy release is out. One message per version, also across restarts. The check sends it again each day until at least one target accepts it, so a target you add later still hears of the current version | info |
 | `certificate_expiring` | A certificate expires within 7 days. One message per certificate until it renews, also across restarts | warning |
 | `route_down` | A route has had no healthy server for 2 minutes, and again once it recovers. Every enabled route with upstreams is watched. A route without a health check path is checked by a TCP connect | error, info on recovery |
 | `bouncer_down` | HAProxy's check of the CrowdSec bouncer has failed for 2 minutes, and again once it recovers. While it is down, requests pass without CrowdSec checks | error, info on recovery |

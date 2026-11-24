@@ -79,11 +79,13 @@ Development tools are pinned in `mise.toml`. Run `mise install` once.
 | `mise run check` | Lint, types, unit and golden tests. Run before every push |
 | `mise run test-integration` | Full container tests in compose |
 | `mise run test-e2e` | Build the image, then Playwright: real flows through the image's dashboard (`tests/real`) and mocked-API specs for error states (`tests/e2e`) |
-| `mise run image` | Build the amd64 image and smoke-test it |
+| `mise run image` | Build the image for this machine's architecture and smoke-test it |
 | `mise run dev` | Start the dev stack with its data volume as it is (empty on first start). `-- seed` loads the example data, `-- reset` deletes the data |
 | `mise run api-client` | Regenerate the TypeScript client and JSON schema |
 | `mise run golden-update` | Update golden files. Review the diff |
-| `mise run bump <kind>` | Bump the version (`major`, `minor` or `patch`) on `dev` and print the release steps |
+| `mise run bump <kind>` | Bump the version (`major`, `minor` or `patch`) on `dev` and write the release PR description. The `release-pr` workflow runs it. Run it by hand only for a breaking change |
+| `mise run release-kind` | Print what the commits since the last release call for: `none`, `patch`, `minor` or `breaking` |
+| `mise run release-notes` | Print the release notes for the commits since the last release. `--closes` adds the `Closes #N` lines for the release PR |
 
 Each command is one executable file in `mise-tasks/`.
 
@@ -97,7 +99,7 @@ Each command is one executable file in `mise-tasks/`.
 6. All file writes are atomic: temp file in the same directory, `fsync`, rename.
 7. Python: 3.13, type hints everywhere, `ruff` and `mypy --strict`. TypeScript: strict mode, ESLint, components in `<script setup>`.
 8. Tests must not bind fixed host ports, so they can run beside the dev stack.
-9. Add a dependency only when the change needs it, and pin it.
+9. Add a dependency only when the change needs it, and pin it where Renovate can update it (`renovate.json`): an image by tag and digest, a download by version with a `# vX` comment on each checksum line, a tool in `mise.toml`.
 
 ## Code style
 
@@ -137,15 +139,17 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 
 - `main` holds the latest release and is the default branch. All work goes to `dev`.
 - Commit straight to `dev` by default. There is one maintainer, so a branch only adds steps.
-- For a small issue, put `Closes #N` in the commit message. The issue closes when the release reaches `main`.
-- Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions or work that needs a review. Put `Closes #N` in the PR description. The PR is squashed, so the keyword reaches `main` in the squash commit.
+- `dev` must always be releasable: a `fix` on `dev` ships by itself the next day. Work that is not ready to ship stays on a branch.
+- For a small issue, put `Closes #N` in the commit message. The release PR description repeats it, and that closes the issue when the release merges.
+- Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions, work that needs a review, or a feature split over several issues. A feature stays on `feat/<issue>` until its backend and its UI are both done. Put `Closes #N` in the PR description. The squash commit keeps it, so the release PR description finds it.
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
-- Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`.
+- Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`. The type decides the next release: `fix` makes a patch release that publishes by itself, `feat` makes a minor release that the maintainer merges, `!` or `BREAKING CHANGE` waits for a release by hand, and every other type releases nothing. Use `fix` only for a change a user would want shipped now.
+- Renovate owns the dependency pins and opens its PRs into `dev`. Do not bump a pin by hand unless the change needs a newer version. Renovate reads `renovate.json` from `main`, so an edit to it takes effect after the next release.
 - Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 
-To release, run `mise run bump <kind>` on a clean `dev`, commit and push. Then open a PR from `dev` into `main` with the `release` label. Its checks run the integration and end-to-end tests, and they fail if the version is already released. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
+Releases are automatic; [docs/releases.md](docs/releases.md) has the whole cycle. Once a day the `release-pr` workflow reads the commits on `dev` since the last release (`mise run release-kind`), bumps the version and opens or refreshes the release PR from `dev` into `main`, with the `release` label and a `Closes #N` line for each issue the commits name. A patch release merges by itself once every required check passes. A minor release waits for the maintainer's merge, and a breaking change waits for `mise run bump` by hand. The maintainer can start the workflow from the Actions tab, for example to ship a Debian security fix that arrived as a `chore`. Release PRs merge with a merge commit, never a squash. The merge builds and tests each architecture, publishes the tested image with its tags and attestation, and creates the GitHub release. Commit subjects become release notes, so write them for users.
 
 ## The AGENTS directory
 

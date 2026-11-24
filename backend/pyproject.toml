@@ -1,6 +1,6 @@
 [project]
 name = "homeproxy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Self-hosted reverse proxy manager built on HAProxy"
 requires-python = ">=3.13,<3.14"
 license = "MIT"
@@ -79,3 +79,7 @@ markers = [
     "integration: runs against the built image in compose (mise run test-integration)",
     "bench: timing benchmark, run on demand with `uv run pytest -m bench`",
 ]
+
+[tool.uv]
+# Resolve only releases at least 3 days old, transitive ones included (docs/releases.md).
+exclude-newer = "3 days"

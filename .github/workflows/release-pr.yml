@@ -1,0 +1,97 @@
+name: release-pr
+
+# Once a day, and on demand from the Actions tab, open or refresh the release PR from dev into
+# main. A fix since the last release makes a patch release, which merges by itself once every
+# required check passes. A feat makes a minor release, and a breaking change stops here: both
+# wait for the maintainer. Chores (dependency updates included) release nothing by themselves.
+#
+# It uses a GitHub App token, because pushes and PRs made with GITHUB_TOKEN start no workflows,
+# so the release PR would get no checks and its merge would not publish. The App's key is in the
+# `release` environment, which only main can use; scheduled runs always run on main.
+on:
+  schedule:
+    - cron: "17 4 * * *"
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: "auto reads the commits. patch or minor forces a release, for example for a Debian fix that came as a chore"
+        type: choice
+        options: [auto, patch, minor]
+        default: auto
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-pr
+  cancel-in-progress: false
+
+jobs:
+  release-pr:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    environment: release
+    steps:
+      - uses: actions/create-github-app-token@f418cff399f7aef4c2f0ad47e25ca7a6abbdd6fc # v3.4.0
+        id: app
+        with:
+          client-id: ${{ vars.RELEASE_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: dev
+          token: ${{ steps.app.outputs.token }}
+          fetch-depth: 0
+          fetch-tags: true
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: Open or refresh the release PR
+        env:
+          GH_TOKEN: ${{ steps.app.outputs.token }}
+          APP_SLUG: ${{ steps.app.outputs.app-slug }}
+          FORCED_KIND: ${{ inputs.kind }}
+        run: |
+          kind=$(mise run --quiet release-kind)
+          # A forced kind never lowers what the commits call for.
+          if [ "${FORCED_KIND:-auto}" != auto ] && { [ "$kind" = none ] || [ "$FORCED_KIND-$kind" = minor-patch ]; }; then
+            kind=$FORCED_KIND
+          fi
+          case "$kind" in
+            none) echo "nothing to release since the last tag"; exit 0 ;;
+            breaking) echo "::notice::a breaking change is waiting on dev: release it by hand with mise run bump"; exit 0 ;;
+          esac
+
+          bot="${APP_SLUG}[bot]"
+          git config user.name "$bot"
+          git config user.email "$(gh api "/users/$bot" --jq .id)+$bot@users.noreply.github.com"
+
+          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+          # Bump when dev still has the released version, or when a feat came after a patch bump.
+          if [ "$version" = "$latest" ] || { [ "$kind" = minor ] && [ "${version%.*}" = "${latest%.*}" ]; }; then
+            mise run --quiet bump "$kind" >/dev/null
+            version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+            git commit -s -am "chore(release): v$version"
+            git push origin HEAD:dev
+          fi
+
+          mise run --quiet release-notes --closes > "$RUNNER_TEMP/body.md"
+          title="chore(release): v$version"
+          pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number // empty')
+          if [ -z "$pr" ]; then
+            gh pr create --base main --head dev --label release --title "$title" --body-file "$RUNNER_TEMP/body.md"
+            pr=$(gh pr list --base main --head dev --state open --json number --jq '.[0].number')
+          else
+            gh pr edit "$pr" --title "$title" --body-file "$RUNNER_TEMP/body.md"
+          fi
+
+          if [ "$kind" = patch ]; then
+            gh pr merge "$pr" --auto --merge
+          else
+            # Off by default; this only matters when a feat turned a patch release into a minor one.
+            gh pr merge "$pr" --disable-auto || echo "auto-merge was not on"
+            echo "::notice::v$version is a $kind release: merge PR #$pr by hand"
+          fi

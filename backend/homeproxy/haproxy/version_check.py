@@ -1,7 +1,7 @@
-"""Compare the running HAProxy version with the newest patch of the newest LTS branch.
+"""Find the newest patch of the newest HAProxy LTS branch, to show beside the running version.
 
 The release data comes from the endoflife.date API. HAProxy is bundled in the image, so a
-newer patch means "update the HomeProxy image".
+newer patch reaches the user only with a HomeProxy release.
 """
 
 import http.client
@@ -19,7 +19,7 @@ RELEASES_URL_ENV = "HOMEPROXY_RELEASES_URL"
 """Replaces `RELEASES_URL` when set. Tests set it, so they never call endoflife.date."""
 FETCH_TIMEOUT = 15.0
 
-# `3.4.7`, `3.4.7-8872a26` from `show info`, or a development build such as `3.5-dev3`.
+# A branch name such as `3.4`.
 _VERSION = re.compile(r"(\d+)\.(\d+)(?:\.(\d+))?")
 
 
@@ -33,7 +33,8 @@ class VersionCheckError(Exception):
 
 
 class _Latest(BaseModel):
-    name: str
+    # The name comes from the internet and is shown on the Overview page.
+    name: str = Field(pattern=r"^[0-9]{1,4}\.[0-9]{1,4}(\.[0-9]{1,4})?$")
 
 
 class _Release(BaseModel):
@@ -60,7 +61,6 @@ class VersionStatus(BaseModel):
     branch: str = Field(description="Newest LTS branch, for example `3.4`")
     latest: str = Field(description="Newest patch release of that branch")
     eol: date | None = Field(description="End of life of that branch")
-    update_available: bool = Field(description="True when `latest` is newer than `running`")
     checked_at: datetime
 
 
@@ -86,7 +86,7 @@ def _fetch_releases(url: str = RELEASES_URL) -> list[_Release]:
 
 
 def check_version(running: str, url: str = RELEASES_URL) -> VersionStatus:
-    """Compare `running` with the newest patch of the newest LTS branch."""
+    """Return `running` with the newest patch of the newest LTS branch."""
     lts = [release for release in _fetch_releases(url) if release.is_lts]
     if not lts:
         raise VersionCheckError("endoflife.date lists no HAProxy LTS branch")
@@ -96,6 +96,5 @@ def check_version(running: str, url: str = RELEASES_URL) -> VersionStatus:
         branch=newest.name,
         latest=newest.latest.name,
         eol=newest.eol_from,
-        update_available=_version_key(newest.latest.name) > _version_key(running),
         checked_at=datetime.now(UTC),
     )
