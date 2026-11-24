@@ -36,12 +36,13 @@ You need a Linux machine with Docker Engine, the Compose plugin and a fixed LAN 
 | Certificates and DNS | [Certificates](docs/certificates.md), [Internal DNS](docs/internal-dns.md), [Cloudflare DNS](docs/cloudflare-dns.md), [Real client IP](docs/real-client-ip.md) |
 | Protection | [CrowdSec](docs/crowdsec.md), [GeoIP](docs/geoip.md) |
 | Operation | [Changes and apply](docs/changes-and-apply.md), [Overview and status](docs/overview-and-status.md), [Dashboard access](docs/dashboard-access.md), [Notifications](docs/notifications.md), [Metrics and logs](docs/metrics-and-logs.md), [Prometheus](docs/prometheus.md), [Releases and updates](docs/releases.md) |
+| Development | [Code style](docs/code-style.md) |
 
 ## Feedback and contributions
 
 Ask for a feature with the feature request form in [Issues](https://github.com/GeorgeGedox/homeproxy/issues). First read the pinned "Not planned" issue, which lists what HomeProxy leaves out on purpose. Ask questions in [Discussions](https://github.com/GeorgeGedox/homeproxy/discussions). Report a security problem privately, as [SECURITY.md](SECURITY.md) says.
 
-To work on the code, read [AGENTS.md](AGENTS.md). It has the commands, the code and test rules, and the branch workflow. The tools are pinned in `mise.toml`: run `mise install`, then `mise run dev` for the dev stack and `mise run check` before you push.
+To work on the code, read [AGENTS.md](AGENTS.md) for the commands, the code rules and the branch workflow, and [Code style](docs/code-style.md) for how to write and test code. The tools are pinned in `mise.toml`: run `mise install`, then `mise run dev` for the dev stack and `mise run check` before you push.
 
 ## License
 
