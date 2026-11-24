@@ -36,7 +36,7 @@ async function clearUnused(name: string): Promise<void> {
       :save="saveTarget(target.name)"
       @remove="targets.splice(index, 1)"
     />
-    <UButton color="neutral" variant="outline" icon="i-lucide-plus" label="Add target" @click="add" />
+    <UButton color="neutral" variant="outline" icon="lucide:plus" label="Add target" @click="add" />
     <UAlert v-for="name in urls?.unused ?? []" :key="name" color="warning" variant="subtle" :title="`A URL is left over for ${name}`" description="No target has this name any more.">
       <template #actions><UButton color="error" variant="subtle" size="xs" label="Clear" :aria-label="`Clear leftover URL of ${name}`" @click="clearUnused(name)" /></template>
     </UAlert>

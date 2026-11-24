@@ -12,8 +12,8 @@ const users = defineModel<RouteUser[]>({ required: true });
         v-model="user.password" type="password" autocomplete="new-password" class="flex-1"
         :placeholder="user.existing ? 'Unchanged' : 'Password'" aria-label="User password"
       />
-      <UButton icon="i-lucide-x" color="neutral" variant="ghost" aria-label="Remove user" @click="users.splice(index, 1)" />
+      <UButton icon="lucide:x" color="neutral" variant="ghost" aria-label="Remove user" @click="users.splice(index, 1)" />
     </div>
-    <UButton icon="i-lucide-plus" color="neutral" variant="subtle" label="Add user" @click="users.push({ name: '', password: '', existing: false })" />
+    <UButton icon="lucide:plus" color="neutral" variant="subtle" label="Add user" @click="users.push({ name: '', password: '', existing: false })" />
   </div>
 </template>
