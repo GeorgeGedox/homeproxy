@@ -8,6 +8,7 @@ import { STACKS } from "./tests/real/stack";
 // loading page fails it, so `mise run test-e2e` also runs `mocked` before the stacks start.
 export default defineConfig({
   reporter: "list",
+  workers: STACKS,
   use: { browserName: "chromium" },
   projects: [
     { name: "mocked", testDir: "tests/e2e", fullyParallel: true },
