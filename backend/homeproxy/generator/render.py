@@ -13,6 +13,7 @@ import tempfile
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Final
 
 from jinja2 import Environment, PackageLoader, StrictUndefined
 from pydantic import SecretStr
@@ -159,7 +160,8 @@ def _environment() -> Environment:
     return environment
 
 
-_ENVIRONMENT = _environment()
+ENVIRONMENT: Final[Environment] = _environment()
+"""The templates' Jinja2 environment. Every value it writes must pass an escaping filter."""
 
 
 def _check_interval(route: HttpRoute, interval: str) -> str:
@@ -378,7 +380,7 @@ def render(
     network = config.network
     # Captcha answers and AppSec both need the request body.
     crowdsec_body = config.crowdsec.captcha_provider != "none" or config.crowdsec.appsec
-    main_config = _ENVIRONMENT.get_template("10-haproxy.cfg.j2").render(
+    main_config = ENVIRONMENT.get_template("10-haproxy.cfg.j2").render(
         http_port=network.http_port,
         https_port=network.https_port,
         default_https_port=network.https_port == 443,
@@ -403,7 +405,7 @@ def render(
         redirect_codes=REDIRECT_CODES,
     )
     backends = [_backend(route, basic_auth or {}) for route in http_routes]
-    backends_config = _ENVIRONMENT.get_template("20-backends.cfg.j2").render(
+    backends_config = ENVIRONMENT.get_template("20-backends.cfg.j2").render(
         backends=backends, stream_backends=streams, tcp_check_interval=_TCP_CHECK_INTERVAL
     )
     paths = path_hosts(http_routes)
@@ -440,10 +442,10 @@ def render(
     if passthrough:
         files[SNI_MAP] = _lines(sni_entries(passthrough))
     if config.crowdsec.enabled:
-        spoe = _ENVIRONMENT.get_template("crowdsec-spoe.cfg.j2")
+        spoe = ENVIRONMENT.get_template("crowdsec-spoe.cfg.j2")
         files[_CROWDSEC_SPOE] = spoe.render(crowdsec_body=crowdsec_body)
     if locked := [backend for backend in backends if backend.users]:
-        files[USERLISTS_CONFIG] = _ENVIRONMENT.get_template("15-userlists.cfg.j2").render(
+        files[USERLISTS_CONFIG] = ENVIRONMENT.get_template("15-userlists.cfg.j2").render(
             backends=locked
         )
     return RenderedRelease(files=files)

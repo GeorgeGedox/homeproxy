@@ -4,8 +4,11 @@ import threading
 import time
 from collections.abc import Iterator
 from datetime import datetime, timedelta
+from typing import Any
 
 import pytest
+from apscheduler.executors.base import BaseExecutor
+from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.schedulers.base import STATE_STOPPED
 from apscheduler.triggers.date import DateTrigger
 
@@ -100,8 +103,18 @@ def test_job_submitted_before_start_waits_queued(runner: JobRunner) -> None:
 
 
 def test_shutdown_fails_queued_jobs_and_lets_running_ones_end(
-    runner: JobRunner, gates: list[Gate]
+    runner: JobRunner, gates: list[Gate], monkeypatch: pytest.MonkeyPatch
 ) -> None:
+    # Nothing in the runner shows the hand-off to the pool, where the job waits for the busy
+    # worker, so the executor records it.
+    handed: set[str] = set()
+    submit_job = BaseExecutor.submit_job
+
+    def record_hand_off(self: BaseExecutor, job: Any, run_times: list[datetime]) -> None:
+        submit_job(self, job, run_times)
+        handed.add(job.id)
+
+    monkeypatch.setattr(BaseExecutor, "submit_job", record_hand_off)
     before = set(threading.enumerate())
     runner.start()
     gate = new_gate(gates)
@@ -109,10 +122,8 @@ def test_shutdown_fails_queued_jobs_and_lets_running_ones_end(
     assert gate.started.wait(DEADLINE)
     never = threading.Event()
     queued = runner.submit("test.job", never.set)
-    # Nothing public shows the hand-off: the scheduler drops a one-off job from its store once it
-    # gave it to the pool, where the job waits for the busy worker.
     wait_until(
-        lambda: runner._scheduler.get_job(queued.id) is None,
+        lambda: queued.id in handed,
         "the scheduler to hand the job to the pool",
         timeout=DEADLINE,
         interval=0.01,
@@ -133,6 +144,10 @@ def test_shutdown_fails_queued_jobs_and_lets_running_ones_end(
     assert runner.tracker.get(queued.id).state is JobState.FAILED
 
 
+def stopped(stopping: list[BackgroundScheduler]) -> bool:
+    return bool(stopping) and stopping[0].state == STATE_STOPPED
+
+
 def test_shutdown_right_after_a_job_ends_leaves_the_scheduler_thread_quiet(
     runner: JobRunner, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -143,6 +158,14 @@ def test_shutdown_right_after_a_job_ends_leaves_the_scheduler_thread_quiet(
     that waits for the thread never lets it stop, so the hold ends after `HOLD` seconds."""
     raised: list[BaseException | None] = []
     monkeypatch.setattr(threading, "excepthook", lambda args: raised.append(args.exc_value))
+    stopping: list[BackgroundScheduler] = []
+    shutdown = BackgroundScheduler.shutdown
+
+    def record_shutdown(self: BackgroundScheduler, *args: Any, **kwargs: Any) -> None:
+        stopping.append(self)
+        shutdown(self, *args, **kwargs)
+
+    monkeypatch.setattr(BackgroundScheduler, "shutdown", record_shutdown)
     next_fire_time = DateTrigger.get_next_fire_time
     shutting_down = threading.Event()
     runs_seen: list[datetime] = []
@@ -154,7 +177,7 @@ def test_shutdown_right_after_a_job_ends_leaves_the_scheduler_thread_quiet(
             runs_seen.append(previous)
         if len(runs_seen) == 2 and shutting_down.wait(DEADLINE):
             deadline = time.monotonic() + HOLD
-            while runner._scheduler.state != STATE_STOPPED and time.monotonic() < deadline:
+            while not stopped(stopping) and time.monotonic() < deadline:
                 time.sleep(0.01)
         fire_time: datetime | None = next_fire_time(self, previous, now)
         return fire_time

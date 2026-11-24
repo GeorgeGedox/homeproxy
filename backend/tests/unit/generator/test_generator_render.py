@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from homeproxy.generator import GeneratorError, RouteError, render, write_release
-from homeproxy.generator.render import _ENVIRONMENT
+from homeproxy.generator.render import ENVIRONMENT
 from homeproxy.models import Config, HttpRoute, Route, parse_route
 from homeproxy.models.route import Upstream
 
@@ -339,7 +339,7 @@ def test_lan_range_that_skipped_its_model_never_reaches_the_output() -> None:
 
 
 def test_templates_write_every_value_through_a_filter() -> None:
-    template = _ENVIRONMENT.from_string("{{ value }}")
+    template = ENVIRONMENT.from_string("{{ value }}")
     with pytest.raises(TypeError):
         template.render(value="raw")
 
