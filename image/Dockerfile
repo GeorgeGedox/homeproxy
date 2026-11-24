@@ -4,7 +4,7 @@
 # Renovate bumps these ARGs (renovate.json): keep the `# vX` comments on the
 # checksum lines, which tell it the version each checksum belongs to.
 
-ARG HAPROXY_IMAGE=haproxy:3.4.7@sha256:f6d2ee87b47192d9cc8c22e88fef405122ff339859644883edc2a7d1827f87b3
+ARG HAPROXY_IMAGE=haproxy:3.4.8@sha256:8ab12982db911f3f13e53c8e4c11312f65b8367301787acbab86459cddf288ea
 ARG DEBIAN_IMAGE=debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
 ARG LEGO_IMAGE=goacme/lego:v5.6.0@sha256:6f1583fc026a455ea46a7a5858c576105bb69c2e2de69db391cab7f14750350c
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490
