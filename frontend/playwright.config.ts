@@ -8,6 +8,9 @@ import { STACKS } from "./tests/real/stack";
 // loading page fails it, so `mise run test-e2e` also runs `mocked` before the stacks start.
 export default defineConfig({
   reporter: "list",
+  // Playwright's default is half the CPUs, 2 on a CI runner, which would leave stacks unused. One
+  // worker per stack runs the real suite about 15% faster there (#42).
+  workers: STACKS,
   use: { browserName: "chromium" },
   projects: [
     { name: "mocked", testDir: "tests/e2e", fullyParallel: true },
