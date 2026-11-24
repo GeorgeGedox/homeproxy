@@ -250,6 +250,8 @@ def pebble() -> Iterator[Pebble]:
         docker(
             "run", "--detach", "--rm", "--name", container,
             "--env", "PEBBLE_VA_ALWAYS_VALID=1", "--env", "PEBBLE_VA_NOSLEEP=1",
+            # Pebble rejects 5% of nonces by default, and lego retries only twice: a flaky test.
+            "--env", "PEBBLE_WFE_NONCEREJECT=0",
             "--volume", f"{directory}:/config:ro", "--publish", "127.0.0.1::14000",
             PEBBLE_IMAGE, "-config", "/config/pebble.json",
         )  # fmt: skip
