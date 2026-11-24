@@ -14,6 +14,8 @@ const { data: routes } = useAsyncData("log-routes", async () => (await api.GET("
 const ALL = "all";
 const sites = computed(() => [{ label: "All sites", value: ALL }, ...(routes.value ?? []).map((route) => ({ label: routeTarget(route), value: route.name }))]);
 const site = computed({ get: () => filters.route || ALL, set: (value: string) => (filters.route = value === ALL ? "" : value) });
+const FROM = [{ label: "All", value: "all" }, { label: "LAN", value: "lan" }, { label: "Internet", value: "internet" }];
+const from = computed({ get: () => filters.network || "all", set: (value: string) => (filters.network = value === "all" ? "" : value) });
 const siteOf = (line: LogLine) => {
   const route = routes.value?.find((item) => item.name === line.route);
   return route ? routeTarget(route) : line.route ? `${line.route} (removed)` : "No site";
@@ -35,6 +37,7 @@ const time = (iso: string) => new Date(iso).toLocaleTimeString("en-GB");
   <section class="rounded-lg border border-default" aria-label="Requests">
     <header class="flex flex-wrap items-center gap-2 rounded-t-lg border-b border-default bg-muted px-4 py-3">
       <USelect v-model="site" :items="sites" aria-label="Site" size="sm" class="w-full sm:w-56" />
+      <USelect v-model="from" :items="FROM" aria-label="From" size="sm" class="w-36" />
       <UInput v-model.lazy="filters.status" placeholder="Status" aria-label="Status" size="sm" class="w-24" />
       <UInput v-model.lazy="filters.client" placeholder="Client IP or range" aria-label="Client" size="sm" class="w-44" />
       <UInput v-model.lazy="filters.country" placeholder="Country" aria-label="Country" size="sm" class="w-24" />

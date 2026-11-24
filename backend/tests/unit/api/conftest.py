@@ -83,7 +83,8 @@ def make_client(root: Path, client: str = LAN_CLIENT[0]) -> TestClient:
     """
     app = create_app()
     store = Store(root)
-    set_runtime(app, AuthRuntime(store))
+    runtime = AuthRuntime(store)
+    set_runtime(app, runtime)
     haproxy = HAProxyClient(str(root / "run" / "master.sock"), str(root / "run" / "admin.sock"))
     certificates = CertificateService(store, haproxy, Lego(root / "acme"), root / "certs")
     app.state.services = Services(
@@ -91,7 +92,7 @@ def make_client(root: Path, client: str = LAN_CLIENT[0]) -> TestClient:
     )
     app.state.version_check = VersionCheck(lambda: haproxy.show_info().version)
     app.state.update_check = UpdateCheck(None)
-    app.state.collector = LogCollector(root / "run" / "syslog.sock")
+    app.state.collector = LogCollector(root / "run" / "syslog.sock", lan=runtime.is_lan)
     app.state.metrics = MetricsStore(root / "state" / "metrics.db")
     app.state.appsec = AppsecReading(store)
     return TestClient(app, base_url=ORIGIN, client=(client, 50000), headers={"Origin": ORIGIN})

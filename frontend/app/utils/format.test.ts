@@ -22,7 +22,7 @@ it.each([
 ])("formatBytes(%s) is %s", (bytes, text) => expect(formatBytes(bytes)).toBe(text));
 
 describe("countryName", () => {
-  it.each([["DE", "Germany"], ["A1", "A1"]])("names %s, and shows a code Intl rejects as itself", (code, name) => {
+  it.each([["DE", "Germany"], ["A1", "A1"], ["LAN", "LAN"]])("names %s, and shows a code Intl rejects as itself", (code, name) => {
     expect(countryName(code)).toBe(name);
   });
 });

@@ -8,7 +8,7 @@ The Metrics page shows the requests HAProxy logged. Pick a range at the top, fro
 - **The chart** draws requests over time. Each point counts the requests of one bucket, named above the chart: a minute for the last hour, 5 minutes for 6 hours, 15 minutes for 24 hours, an hour for 7 days, 6 hours for 30 days and a day for 90 days. The last point is the bucket still running, so it holds fewer requests; its tooltip says "so far".
 - **Sites, Status codes and Countries** rank the requests in the range, each with a bar for its share. Click a row to see it over time: the chart draws it in orange, with all requests as a thin grey line behind it. Click it again, or **Show all**, to go back.
 
-The country comes from the GeoIP data (see [GeoIP](geoip.md)) for every request, whether its country is blocked or not. Lines with no value get their own row: "No site" for a request that matched no site, "No status (TCP)" for a TCP connection, and "Unknown" for an address with no country, such as one on your LAN. A site you removed keeps its internal name, marked "(removed)".
+The country comes from the GeoIP data (see [GeoIP](geoip.md)) for every request, whether its country is blocked or not. Lines with no value get their own row: "No site" for a request that matched no site, "No status (TCP)" for a TCP connection, and "Unknown" for an address with no country. A client in `network.lan_cidrs` counts as "LAN", apart from "Unknown". Requests counted before this change stay in "Unknown". A site you removed keeps its internal name, marked "(removed)".
 
 The data is stored in `state/metrics.db` in the data directory, so charts survive a container restart. If the file is damaged, HomeProxy replaces it and the history starts again. If it cannot be opened at all, the page shows "Metrics are unavailable". Routing is not affected.
 
@@ -18,7 +18,7 @@ The Logs page has a tab for each log HomeProxy stores: Requests, HAProxy, Dashbo
 
 **Requests** tails the access log live, newest line first, up to 500 lines. Each line shows the time, the status, the request, the site it went to ("No site" when none matched), the client address and its country. The light says "Live", "Reconnecting" while the dashboard connection is down, or "Stopped" when a filter is refused.
 
-- **Filters:** a site, a status code, a client address or range (for example `192.168.1.0/24`) and a country code. The site applies at once; the others when you press Enter or leave the field. Only lines that match every filled field show. **Clear** removes them. A filter the dashboard refuses says why under the filters.
+- **Filters:** a site, where the client is from (**All**, **LAN** or **Internet**, matched against `network.lan_cidrs`), a status code, a client address or range (for example `192.168.1.0/24`) and a country code. A LAN client shows "LAN" in the country column. The site and **From** apply at once; the others when you press Enter or leave the field. Only lines that match every filled field show. **Clear** removes them. A filter the dashboard refuses says why under the filters.
 - Click a line to see it as HAProxy wrote it, with the full date and request.
 - **Pause** stops new lines from entering the list, so you can read it. The light counts the lines that arrived meanwhile, and **Resume** puts them on top. Changing a filter ends the pause.
 - **Download** takes the whole stored access log.

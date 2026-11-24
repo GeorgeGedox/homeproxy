@@ -36,7 +36,7 @@ from homeproxy.api.apply import Services
 from homeproxy.api.errors import install_error_handlers
 from homeproxy.api.metrics import collect_metrics
 from homeproxy.auth import install_auth
-from homeproxy.auth.runtime import data_root
+from homeproxy.auth.runtime import data_root, get_runtime
 from homeproxy.certs.service import CertificateService
 from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.geoip.lookup import CountryLookup
@@ -109,7 +109,11 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     appsec = app.state.appsec = AppsecReading(store)
     StateAlerts(store, client.show_stat, certificates.certificates, appsec=appsec).schedule(runner)
     files = LogFiles(root)
-    collector = LogCollector(countries=CountryLookup(root), other=files.haproxy)
+    collector = LogCollector(
+        countries=CountryLookup(root),
+        lan=lambda address: get_runtime(app).is_lan(address),
+        other=files.haproxy,
+    )
     collector.subscribe(files.access)
     app.state.collector = collector
     async with collect_metrics(collector, root / "state" / "metrics.db") as metrics:

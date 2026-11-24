@@ -8,10 +8,11 @@ import asyncio
 import ipaddress
 from collections.abc import AsyncGenerator
 from contextlib import suppress
+from typing import Literal
 
 from pydantic import ConfigDict, Field, IPvAnyNetwork
 
-from homeproxy.logs.collector import LogCollector
+from homeproxy.logs.collector import LAN_COUNTRY, LogCollector
 from homeproxy.logs.parser import AccessLog
 from homeproxy.models.base import MODEL_CONFIG, StrictModel
 
@@ -37,11 +38,17 @@ class LogFilter(StrictModel):
     )
     country: str | None = Field(default=None, description="A country code such as DE.")
 
+    network: Literal["lan", "internet"] | None = Field(
+        default=None, description="Only clients in `network.lan_cidrs`, or only the others."
+    )
+
     def matches(self, entry: AccessLog) -> bool:
         """Tell whether `entry` passes every filter that is set."""
         if self.route is not None and entry.route != self.route:
             return False
         if self.status is not None and entry.status != self.status:
+            return False
+        if self.network is not None and (entry.country == LAN_COUNTRY) != (self.network == "lan"):
             return False
         if self.country is not None and entry.country != self.country.upper():
             return False
