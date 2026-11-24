@@ -22,8 +22,8 @@ from homeproxy.util import http as http_request
 
 logger = logging.getLogger(__name__)
 
-UPDATE_URL: str | None = None
-"""The release source. None while the repository is private: then nothing is fetched."""
+UPDATE_URL: str | None = "https://api.github.com/repos/GeorgeGedox/homeproxy/releases/latest"
+"""The release source: the newest GitHub release. None turns the check off."""
 UPDATE_URL_ENV = "HOMEPROXY_UPDATE_URL"
 """Replaces `UPDATE_URL` when set. Only tests and the dev stack set it, to a fake release."""
 KIND = "homeproxy.update-check"

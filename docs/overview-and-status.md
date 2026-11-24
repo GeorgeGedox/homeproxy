@@ -24,7 +24,7 @@ A route that is `DOWN` is live. HAProxy serves it with an error until the upstre
 
 When the dashboard starts, it asks endoflife.date for the newest patch of the HAProxy branch it runs, and compares it with the running version. If the lookup fails, for example without internet access, the next try is a day later, so a newer patch can be missing for up to a day after a restart. The check changes nothing. Updating means pulling or building a newer image, as in [Install](install.md).
 
-HomeProxy also checks once a day for a newer release of itself. Versions are `X.Y.Z`, and a release is tagged `vX.Y.Z`. Until the project publishes releases, this check is not configured: it fetches nothing, the status strip says "Update check not set up", and `GET /api/v1/status` returns `update_check_configured: false`. A configured check that has not succeeded yet, such as one without internet access, shows "Not checked yet".
+HomeProxy also checks for a newer release of itself. The check runs when the dashboard starts, and then once a day. It reads the newest release on GitHub. Versions are `X.Y.Z`, and a release is tagged `vX.Y.Z`. If the check has not succeeded yet, for example without internet access, the status strip shows "Not checked yet".
 
 ## Jobs
 
