@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Bump the version (major, minor or patch) and print the release steps"
+#MISE description="Bump the version (major, minor or patch), write the release PR description and print the release steps"
 #USAGE arg "<kind>" help="major, minor or patch"
 set -euo pipefail
 cd "${MISE_PROJECT_ROOT:?}"
@@ -15,13 +15,34 @@ if [ -n "$(git status --porcelain)" ]; then
   exit 1
 fi
 
+# The release workflow creates the tags on GitHub, so fetch them to find the last release.
+if ! git fetch --quiet --tags origin; then
+  echo "warning: cannot fetch tags; the issue list may include released issues" >&2
+fi
+last=$(git describe --tags --abbrev=0 --match 'v*' 2>/dev/null || true)
+
 (cd backend && uv version --bump "$kind")
 version=$(cd backend && uv version --short)
+
+# The release PR closes every issue that a commit since the last release names with a closing
+# keyword. The keyword in the PR description is what closes it; a squashed PR body is in its commit.
+body=$(git rev-parse --git-path RELEASE_PR_BODY)
+{
+  echo "Release v$version."
+  echo
+  git log --format=%B ${last:+"$last..HEAD"} \
+    | grep -oiE '\b(close[sd]?|fix(e[sd])?|resolve[sd]?):? #[0-9]+' \
+    | grep -oE '#[0-9]+' | sort -u -t'#' -k2,2n | sed 's/^/Closes /' || true
+} > "$body"
+
 cat <<EOF
 
-Bumped to $version. Next:
-  git commit -am "chore(release): v$version"
+Bumped to $version. The release PR description is in $body:
+$(sed 's/^/  /' "$body")
+
+Next:
+  git commit -s -am "chore(release): v$version"
   git push origin dev
-  gh pr create --base main --head dev --label release --title "chore(release): v$version" --body ""
-Merge the release PR with a merge commit. The merge publishes v$version.
+  gh pr create --base main --head dev --label release --title "chore(release): v$version" --body-file $body
+Check the description, then merge the release PR with a merge commit. The merge publishes v$version.
 EOF
