@@ -33,9 +33,8 @@ _IGNORE_FILTERS = [("ignore", None, category, None, 0) for category in _WARNING_
 def _ignore_ruamel_warnings() -> None:
     """Put the ignore filters at the front of the process-wide list, unless they are there.
 
-    The import adds them, and each parse checks again. An import inside another caller's
-    `catch_warnings` block loses them when that block exits, as pytest's collection does, and a
-    later `simplefilter("always")` would otherwise take priority.
+    Each parse calls this, because another caller's `catch_warnings` block can drop them when it
+    exits, and a later `simplefilter("always")` would otherwise take priority.
     """
     head = warnings.filters[: len(_IGNORE_FILTERS)]
     if all(item in head for item in _IGNORE_FILTERS):
@@ -44,8 +43,6 @@ def _ignore_ruamel_warnings() -> None:
         # This removes an equal filter further down before it inserts at the front.
         warnings.filterwarnings("ignore", category=category)
 
-
-_ignore_ruamel_warnings()
 
 _BOM = b"\xef\xbb\xbf"
 
