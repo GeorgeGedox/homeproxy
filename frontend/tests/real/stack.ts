@@ -9,7 +9,7 @@ import { connect as tlsConnect } from "node:tls";
 import { request as playwrightRequest } from "@playwright/test";
 
 /** One stack per worker of the real project; `playwright.config.ts` runs that many workers. */
-export const STACKS = 4;
+export const STACKS = 2;
 
 /** The upstream of the real flows, the same pinned image the dev stack uses. */
 const WHOAMI = "traefik/whoami:v1.11.0@sha256:200689790a0a0ea48ca45992e0450bc26ccab5307375b41c84dfc4f2475937ab";
