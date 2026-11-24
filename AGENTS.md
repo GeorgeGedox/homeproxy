@@ -1,17 +1,74 @@
 # HomeProxy development instructions
 
-HomeProxy is a self-hosted reverse proxy manager for home labs: one container that bundles HAProxy with a small LAN-only dashboard. HAProxy does all the proxying. The dashboard writes config and talks to HAProxy's sockets.
+HomeProxy is a self-hosted reverse proxy manager for home labs. It is one container with HAProxy and a small dashboard. HAProxy does all the proxying. The dashboard writes the config and talks to the HAProxy sockets. One admin uses it, from the LAN only.
 
-## Sources of truth
+The code is the source of truth. This file gives the overview and the rules that the code cannot show.
 
-| Question | Read |
+## How it works
+
+The container runs these s6 services. The CrowdSec engine is optional and runs in a separate container.
+
+| Service | What it does |
 | --- | --- |
-| What to build and how it behaves | [PRODUCT_DESIGN.md](PRODUCT_DESIGN.md) |
-| Contracts: config files, data directory, processes, API | [PLAN.md](PLAN.md) |
-| Why it is designed this way | [docs/DESIGN_PLAN.md](docs/DESIGN_PLAN.md) |
-| Decisions made during the project | [docs/decisions.md](docs/decisions.md) |
+| `haproxy` | Serves all traffic. It starts with `-f /data/generated/conf.d/`. Master CLI `/run/haproxy/master.sock`, runtime API `/run/haproxy/admin.sock` |
+| `api` | The FastAPI app and the built UI over HTTPS on `dashboard.listen`. It also runs the jobs and the syslog collector (`/run/homeproxy/syslog.sock`) |
+| `dns` | The internal DNS server. It reads `dns-records.json` from the live release and reloads on SIGHUP |
+| `spoa` | The CrowdSec bouncer. It stays down until CrowdSec is on |
+| `*-log` | s6-log for the api, dns and spoa services |
 
-If documents disagree, `PLAN.md` wins on contracts, `PRODUCT_DESIGN.md` wins on behavior, and `docs/DESIGN_PLAN.md` loses to both.
+The api and dns services run as the `homeproxy` user. Only HAProxy binds privileged ports, through a file capability. The container uses host networking.
+
+Data in `/data`:
+
+| Path | Contents |
+| --- | --- |
+| `config/` | `config.yaml` and `routes/*.yaml`. The user may edit these files by hand |
+| `pending/` | Staged edits and the hash of each staged file's base |
+| `secrets/secrets.yaml` | All secrets, mode 0600. Never in snapshots |
+| `history/` | Snapshots for rollback, the last 50 |
+| `releases/<id>/`, `generated` | Rendered HAProxy files. `generated` is a symlink to the live release |
+| `certs/`, `acme/`, `tls/` | Certificates, the lego account and the dashboard's self-signed certificate |
+| `state/` | Metrics in SQLite, stored logs and caches. It is disposable |
+| `audit/audit.jsonl` | The append-only audit log |
+
+An edit from the API goes into `pending/` only. An apply does these steps:
+
+1. Validate the overlay of `pending/` on `config/`.
+2. Render a new release and run `haproxy -c` on it.
+3. Update HAProxy. Maps and certificates change through the runtime API. Other changes need a reload.
+4. Verify HAProxy. If the verification fails, roll back to the previous release.
+5. Promote the edits to `config/` and take a snapshot.
+
+A failed apply changes nothing in `config/`, and the edits stay pending. If a staged file changed by hand after it was staged, the apply stops with a conflict.
+
+## Where to find things
+
+| Question | Look in |
+| --- | --- |
+| Config file format | The Pydantic models in `backend/homeproxy/models/` and `examples/data/` |
+| API | The routers in `backend/homeproxy/api/` and the OpenAPI schema |
+| How a feature behaves for the user | `docs/` and the tests |
+| Planned work | GitHub issues and the milestones |
+| What is not planned, and why | The pinned "Not planned" issue |
+
+Backend packages in `backend/homeproxy/`: `models` (schemas), `store` (YAML, pending edits, snapshots, locks, audit), `generator` (templates and render), `haproxy` (sockets, stats, apply pipeline), `certs` (lego), `cloudflare` (records, DDNS), `dns`, `logs` (collector, metrics, stored logs), `crowdsec`, `geoip`, `auth`, `api`, `jobs`, `notify`, `util`. The frontend is a Nuxt 4 app in `frontend/app/`. The image is in `image/`, the compose files are in `deploy/`, and the tasks are in `mise-tasks/`.
+
+## Design rules
+
+These rules are settled. Do not change them without a new decision from the maintainer.
+
+- The dashboard is never an upstream of a route, and it never answers from the internet. A non-LAN client of the dashboard port gets no HTTP response.
+- The dashboard uses HTTPS with a self-signed certificate. There is no default password. Setup needs a one-time token from the container log and a private source address.
+- An unhealthy upstream after an apply gives a warning. It does not cause a rollback.
+- A snapshot restore never restores the password hash.
+- CrowdSec fails open. HAProxy skips the check for LAN ranges and for its own allowlist (`allow.lst`).
+- HomeProxy changes or deletes only the Cloudflare records that have its ownership marker. A hand-made record changes only after the admin adopts it.
+- Certificates use DNS-01 through lego, with any lego DNS provider except `exec`. Cloudflare records and DDNS need a Cloudflare zone.
+- The UI can edit every setting in `config.yaml` and `secrets.yaml`, and a new setting ships with its UI. The exceptions are `version`, `session_key`, `haproxy.track_branch` and `network.ipv6`.
+- The API never returns a secret. It returns only whether a secret is set.
+- GeoIP blocks countries. HAProxy holds only the ranges of the countries that are blocked somewhere.
+- The UI has a dark theme only, and it makes no request outside its origin.
+- HomeProxy listens and answers DNS on IPv4 only. It tracks the newest HAProxy LTS.
 
 ## Commands
 
@@ -19,7 +76,7 @@ Development tools are pinned in `mise.toml`. Run `mise install` once.
 
 | Command | Purpose |
 | --- | --- |
-| `mise run check` | Lint, types, unit and golden tests. Run before every commit to `main` |
+| `mise run check` | Lint, types, unit and golden tests. Run before every push |
 | `mise run test-integration` | Full container tests in compose |
 | `mise run test-e2e` | Build the image, then Playwright: real flows through the image's dashboard (`tests/real`) and mocked-API specs for error states (`tests/e2e`) |
 | `mise run image` | Build the amd64 image and smoke-test it |
@@ -59,7 +116,7 @@ Write code that is easy to find, read and change. When in doubt, write less.
 
 Tests prove what the product really does. More tests are not better tests.
 
-1. **Real scenarios only.** Each test covers a behavior in `PRODUCT_DESIGN.md`, a contract in `PLAN.md`, a rule in "Code rules" above, or a bug that happened. Do not test cases that cannot happen in a one-user, LAN-only home lab, such as heavy load, many parallel clients or a hostile local process (see `docs/decisions.md`). Attacks through user input, such as config injection, auth bypass and leaked secrets, are real and stay tested.
+1. **Real scenarios only.** Each test covers a behavior in `docs/`, an issue, a rule in this file, or a bug that happened. Do not test cases that cannot happen in a one-user, LAN-only home lab, such as heavy load, many parallel clients or a hostile local process. Attacks through user input, such as config injection, auth bypass and leaked secrets, are real and stay tested.
 2. **One owner per behavior.** Before you add a test, search for one that covers the behavior already. Extend that test instead of writing a second one. Test each rule at the lowest level that can show it: validation in model tests, HAProxy output in golden tests. A higher-level test only checks that the parts connect, and does not repeat the lower-level cases.
 3. **Every case adds something.** Parametrize similar inputs. Each case must reach a different branch or rule, so drop near-duplicates.
 4. **Test through public behavior.** Call public functions, the API or the real binary. Do not test private helpers. Mock only what a test cannot run, such as Cloudflare or the internet. Replace this project's own code only to inject a failure that a real run cannot easily produce, such as a crash in the middle of a write.
@@ -71,9 +128,29 @@ Tests prove what the product really does. More tests are not better tests.
 1. **Back every claim with evidence.** "Broken", "fixed", "passes" and "works" each need command output, a test result, a reproduction or a `file:line`. Without evidence, say it is unverified.
 2. **Trust the diff, not the summary.** Review a code change by reading its diff. A report of what changed only points where to look.
 
-## Git rules
+## Writing
 
-- Before a commit, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
-- Commit messages use Conventional Commits, for example `feat(generator): add LAN-only map`.
+Write all text for people in plain English, with no filler. Write `docs/` and step-by-step text in ASD-STE100 Simplified Technical English. Quote UI labels exactly. A change to a UI label also changes its tests and the docs that quote it.
+
+## Workflow
+
+- `main` holds the latest release and is the default branch. All work goes to `dev`.
+- For an issue: make a branch from `dev`, then open a PR into `dev` with `gh pr create --base dev`. Put `Closes #N` in the PR description. The PR is squashed, so the issue closes when the release reaches `main`.
+- A small change that you can do and test in one session can go straight to `dev` as a commit.
+- Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
+- Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
+
+To release, bump the version in `backend/pyproject.toml` on `dev` and run `uv lock`, then open a PR from `dev` into `main`. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
+
+## The AGENTS directory
+
+`AGENTS/` at the repository root is for working notes and is not in git. Use it for a plan or a handover that is too large for an issue. Use one file for each piece of work, named `<issue number>-<slug>.md` or `<slug>.md`, with these sections:
+
+- Goal: the issue link and the result you want.
+- Plan: the steps, as a checklist.
+- Findings: facts you found, with evidence.
+- Handover: what is done, the next step and the open questions.
+
+Before the work closes, move the decisions to the issue or the PR, and move the behavior to the code, the tests or `docs/`. Then delete the file. A small task from an issue needs no file.

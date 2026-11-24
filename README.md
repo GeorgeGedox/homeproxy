@@ -1,19 +1,28 @@
 # HomeProxy
 
-A self-hosted reverse proxy manager for home labs. One container bundles HAProxy with a small dashboard that only your LAN can reach. You manage routes, domains, certificates, DNS and protection from the dashboard. HAProxy does all the proxying: the dashboard writes its config and talks to its sockets, so traffic keeps flowing on the last good config if the dashboard stops.
+A self-hosted reverse proxy manager for home labs. One container bundles HAProxy with a small dashboard that only your LAN can reach. You manage routes, domains, certificates, DNS and protection from the dashboard, and you never edit `haproxy.cfg` by hand.
 
-> **Status: pre-release.** Release tags publish an amd64 image; arm64 is not built or tested yet. It runs one real home lab so far. Expect rough edges.
+HAProxy does all the proxying. The dashboard writes its config and talks to its sockets, so traffic keeps flowing on the last good config if the dashboard stops.
+
+> **Status: pre-release.** Releases publish an amd64 image. HomeProxy runs one real home lab so far, so expect rough edges.
+
+## Who it is for
+
+You run services on a few machines on your LAN, you have one or more domains, and your router forwards ports 80 and 443 to one host. You want to add `app.example.com` in front of `192.168.1.20:8080` and have it on HTTPS a minute later. Some services stay LAN-only, some go public with one switch, and certificates renew without you.
+
+HomeProxy is for one admin and one host. The dashboard never faces the internet.
 
 ## What it does
 
 - HTTP routes by host and path, TCP port forwards, TLS passthrough and redirects.
-- Certificates from Let's Encrypt over the DNS challenge, issued and renewed without help. A domain can also have no certificate and serve plain HTTP.
+- Certificates from Let's Encrypt over the DNS challenge, with any DNS provider that lego supports, issued and renewed on their own. A domain can also have no certificate and serve plain HTTP.
 - Routes that only the LAN can reach, and one switch to make a route public.
 - An internal DNS server, so LAN devices resolve your routes to the proxy's LAN address.
 - Cloudflare: DNS records for public routes, DDNS, and the real client IP behind the Cloudflare proxy.
 - Protection: CrowdSec (bans, captcha, AppSec), GeoIP country blocking and basic auth.
-- Every change is checked by `haproxy -c` before it goes live. Each apply is a snapshot that you can restore, and a failed apply rolls back.
-- Access logs, metrics, a Prometheus exporter and notifications (Discord and webhooks).
+- `haproxy -c` checks every change before it goes live. A failed apply rolls back, and every apply is a snapshot that you can restore.
+- Access logs, metrics, a Prometheus exporter and notifications to Discord and webhooks.
+- Your config stays in plain YAML files that you can read and edit.
 
 ## Install
 
@@ -27,21 +36,12 @@ You need a Linux machine with Docker Engine, the Compose plugin and a fixed LAN 
 | Certificates and DNS | [Certificates](docs/certificates.md), [Internal DNS](docs/internal-dns.md), [Cloudflare DNS](docs/cloudflare-dns.md), [Real client IP](docs/real-client-ip.md) |
 | Protection | [CrowdSec](docs/crowdsec.md), [GeoIP](docs/geoip.md) |
 | Operation | [Changes and apply](docs/changes-and-apply.md), [Overview and status](docs/overview-and-status.md), [Dashboard access](docs/dashboard-access.md), [Notifications](docs/notifications.md), [Metrics and logs](docs/metrics-and-logs.md), [Prometheus](docs/prometheus.md) |
-| Design | [Product design](PRODUCT_DESIGN.md), [Contracts](PLAN.md), [Design plan](docs/DESIGN_PLAN.md), [Decisions](docs/decisions.md) |
 
-## Development
+## Feedback and contributions
 
-The tools are pinned in `mise.toml`. Run `mise install` once.
+Ask for a feature with the feature request form in [Issues](https://github.com/GeorgeGedox/homeproxy/issues). First read the pinned "Not planned" issue, which lists what HomeProxy leaves out on purpose. Ask questions in [Discussions](https://github.com/GeorgeGedox/homeproxy/discussions). Report a security problem privately, as [SECURITY.md](SECURITY.md) says.
 
-| Command | Purpose |
-| --- | --- |
-| `mise run dev` | Start the dev stack. `-- seed` loads the example data |
-| `mise run check` | Lint, types, unit and golden tests |
-| `mise run test-integration` | Container tests in Compose |
-| `mise run test-e2e` | Build the image, then run the Playwright tests |
-| `mise run image` | Build the amd64 image and smoke-test it |
-
-The rules for code and tests are in [AGENTS.md](AGENTS.md).
+To work on the code, read [AGENTS.md](AGENTS.md). It has the commands, the code and test rules, and the branch workflow. The tools are pinned in `mise.toml`: run `mise install`, then `mise run dev` for the dev stack and `mise run check` before you push.
 
 ## License
 

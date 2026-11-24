@@ -14,7 +14,7 @@ MIN_LENGTH = 10
 MAX_LENGTH = 1024
 """The longest password accepted, so a huge request body cannot waste hashing time."""
 
-# The parameters in the PLAN example: 64 MiB, 3 passes, 4 lanes. They match argon2-cffi's
+# 64 MiB, 3 passes, 4 lanes: argon2-cffi's
 # RFC 9106 low-memory profile.
 _HASHER = PasswordHasher(
     time_cost=3, memory_cost=65536, parallelism=4, hash_len=32, salt_len=16, type=Type.ID

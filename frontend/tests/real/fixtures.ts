@@ -38,7 +38,7 @@ export async function signIn(page: Page, stack: Stack): Promise<void> {
   await page.goto("/");
   await page.waitForURL(/\/(setup|login)$/);
   if (page.url().endsWith("/login")) return logIn(page);
-  // Setup shows what it found and will write, the dashboard address included (A1-11).
+  // Setup shows what it found and will write, the dashboard address included.
   await expect(page.getByTestId("setup-summary")).toContainText("LAN ranges");
   await expect(page.getByTestId("setup-summary")).toContainText("DNS server");
   await expect(page.getByTestId("setup-summary")).toContainText("Dashboard");

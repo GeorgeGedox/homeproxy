@@ -2,7 +2,7 @@
 const { form, needed, needs, detected, mismatch, error, busy, submit } = useSetupWizard();
 // The dashboard stays on the address this page was opened on.
 const here = window.location.host;
-/** What setup found and writes, as docs/install.md step 5 lists it (A1-11). Undetected values are asked for instead. */
+/** What setup found and writes, as docs/install.md step 5 lists it. Undetected values are asked for instead. */
 const found = computed(() => [
   { label: "LAN ranges", value: detected.value?.network?.lan_cidrs?.join(", ") },
   { label: "Proxy LAN IP", value: detected.value?.network?.haproxy_lan_ip },

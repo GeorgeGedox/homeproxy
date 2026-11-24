@@ -1,7 +1,7 @@
 # HomeProxy image. Build from the repository root:
 #   docker build -f image/Dockerfile .
 # Every base image and downloaded binary is pinned by version and digest. The
-# Renovate and rebuild jobs in M4-7 bump these ARGs.
+# The planned Renovate and HAProxy rebuild jobs bump these ARGs.
 
 ARG HAPROXY_IMAGE=haproxy:3.4.7@sha256:f6d2ee87b47192d9cc8c22e88fef405122ff339859644883edc2a7d1827f87b3
 ARG DEBIAN_IMAGE=debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2

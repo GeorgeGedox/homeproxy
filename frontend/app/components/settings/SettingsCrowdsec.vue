@@ -4,7 +4,7 @@ import type { components } from "~~/api/schema";
 const crowdsec = defineModel<components["schemas"]["Crowdsec"]>({ required: true });
 const { state } = useBouncerState();
 const { isSet } = useSettingsKeys();
-// A set key shows even while captcha is off, so it can be seen and cleared (A1-12).
+// A set key shows even while captcha is off, so it can be seen and cleared.
 const captcha = computed(() => crowdsec.value.captcha_provider !== "none" || ["captcha_site_key", "captcha_secret_key", "captcha_signing_key"].some((key) => isSet("crowdsec", key)));
 const bouncer = computed(() => {
   if (state.value === "up") return { color: "success", label: "Bouncer up", hint: "" } as const;

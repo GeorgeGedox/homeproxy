@@ -1,0 +1,40 @@
+name: Feature request
+description: Ask for something HomeProxy does not do yet.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Check the pinned "Not planned" issue first: it lists what HomeProxy leaves out on purpose, and why.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What you are trying to do, and what stops you today.
+      placeholder: My Jellyfin route needs ... but HomeProxy only ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: What HomeProxy should do, as you would see it in the dashboard or in the proxied traffic.
+    validations:
+      required: true
+  - type: textarea
+    id: done-when
+    attributes:
+      label: Done when
+      description: How anyone can check that it works. One line per check.
+      placeholder: |
+        - A request to app.example.com/api reaches the API upstream
+        - The setting saves and survives a restart
+    validations:
+      required: false
+  - type: textarea
+    id: notes
+    attributes:
+      label: Notes
+      description: Anything else, such as how other proxies do it, or links. Do not paste API tokens, passwords or other secrets.
+    validations:
+      required: false

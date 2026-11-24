@@ -36,3 +36,6 @@ mise.local.toml
 .vscode/
 .idea/
 .DS_Store
+
+# Agent working notes (see AGENTS.md)
+/AGENTS/

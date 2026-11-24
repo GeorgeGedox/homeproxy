@@ -7,7 +7,7 @@ set -euo pipefail
 user=homeproxy
 data=/data
 
-# Directories from the PLAN data contract. Secret-bearing ones are private.
+# The /data layout. Directories that hold secrets are private.
 public_dirs=(config pending history audit releases certs geoip state)
 private_dirs=(secrets acme tls crowdsec)
 

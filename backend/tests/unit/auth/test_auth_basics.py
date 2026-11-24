@@ -45,7 +45,7 @@ class FakeClock:
 
 
 def test_hash_is_argon2id_in_the_format_config_yaml_accepts(good_hash: str) -> None:
-    """The hash is argon2id with the PLAN parameters and passes the config model's validator."""
+    """The hash is argon2id (64 MiB, 3 passes, 4 lanes) and passes the config validator."""
     assert good_hash.startswith("$argon2id$v=19$m=65536,t=3,p=4$")
     TypeAdapter(PasswordHash).validate_python(SecretStr(good_hash))
     assert GOOD not in good_hash

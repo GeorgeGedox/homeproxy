@@ -1,6 +1,6 @@
 """Session endpoints: setup status, login, logout and the current session.
 
-`POST /setup` and `PUT /auth/password` belong to the settings API (M1-8a). They use
+`POST /setup` and `PUT /auth/password` belong to the settings API. They use
 `AuthRuntime.setup_claim` and `hash_password` from this package.
 """
 

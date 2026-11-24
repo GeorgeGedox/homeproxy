@@ -37,9 +37,9 @@ DASHBOARD = ("127.0.0.1", "9443")
 REFRESH = "/api/v1/geoip/refresh"
 APPLY_LIMIT = 5.0
 MEMORY_LIMIT = 300_000_000
-"""300 MB, the footprint in PRODUCT_DESIGN.md."""
+"""300 MB, the idle footprint budget for the whole container."""
 NO_BLOCK_LIMIT = 274_800_000 - 80_000_000
-"""80 MB below the lowest of M0-17's five runs, which held the whole map in HAProxy."""
+"""80 MB below the lowest of five runs from when HAProxy held the whole map."""
 REFRESH_TIMEOUT = 180.0
 """The download, build and apply of the largest map on a slow machine."""
 DOWNLOADS_PORT = 18765

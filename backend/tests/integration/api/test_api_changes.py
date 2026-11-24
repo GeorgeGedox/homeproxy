@@ -28,7 +28,7 @@ ROUTE = {
 
 def stage_new_password_hash(root: Path) -> tuple[str, str]:
     """Stage `config.yaml` with another password hash, as a restore of an old snapshot could
-    before M1-5's fix. Return the live and the staged hash."""
+    before restores kept the current hash. Return the live and the staged hash."""
     store = Store(root)
     tree = load_tree(store.config_path)
     live = str(tree["dashboard"]["password_hash"])

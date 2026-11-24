@@ -37,7 +37,7 @@ def line(
 async def sse_client(
     collector: LogCollector, query: str = ""
 ) -> AsyncIterator[asyncio.Queue[Message]]:
-    """Run a request against the endpoint as M4-8 writes it and hand over what it sends."""
+    """Run a request against the stream endpoint and hand over what it sends."""
     app = FastAPI()
 
     @app.get("/logs/stream", response_class=EventSourceResponse)

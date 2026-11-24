@@ -47,7 +47,7 @@ Only the `init-data` oneshot can stop the container (`S6_BEHAVIOUR_IF_STAGE2_FAI
 ## Runtime
 
 - Start as root. `/init` drops each service to the `homeproxy` user (uid 10001).
-- Mount a volume on `/data`. The first start creates the layout from `PLAN.md` and a placeholder release. `/data/generated` is a relative symlink to `releases/placeholder`.
+- Mount a volume on `/data`. The first start creates the data layout (`image/scripts/init-data`) and a placeholder release. `/data/generated` is a relative symlink to `releases/placeholder`.
 - HAProxy needs `NET_BIND_SERVICE` in the container capability set (Docker's default). With `cap_drop: [ALL]`, add it back or HAProxy fails to execute.
 
 | Variable | Default | Effect |

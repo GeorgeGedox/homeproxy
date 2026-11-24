@@ -208,7 +208,7 @@ class AuthRuntime:
         as a failed login. If the block raises, the token is released for another try. If it
         returns, the token is used up. The server keeps running on the address it is on.
 
-        Usage in the setup endpoint (M1-8a): `with runtime.setup_claim(ip, body.token): ...`.
+        Usage in the setup endpoint: `with runtime.setup_claim(ip, body.token): ...`.
         Write the files under `Store.lock()` inside the block.
         """
         if not self.setup_required() or self.setup_token is None:
