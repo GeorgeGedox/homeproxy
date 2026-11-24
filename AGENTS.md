@@ -83,6 +83,7 @@ Development tools are pinned in `mise.toml`. Run `mise install` once.
 | `mise run dev` | Start the dev stack with its data volume as it is (empty on first start). `-- seed` loads the example data, `-- reset` deletes the data |
 | `mise run api-client` | Regenerate the TypeScript client and JSON schema |
 | `mise run golden-update` | Update golden files. Review the diff |
+| `mise run bump <kind>` | Bump the version (`major`, `minor` or `patch`) on `dev` and print the release steps |
 
 Each command is one executable file in `mise-tasks/`.
 
@@ -142,7 +143,7 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 
-To release, bump the version in `backend/pyproject.toml` on `dev` and run `uv lock`, then open a PR from `dev` into `main`. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
+To release, run `mise run bump <kind>` on a clean `dev`, commit and push. Then open a PR from `dev` into `main` with the `release` label. Its checks run the integration and end-to-end tests, and they fail if the version is already released. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
 
 ## The AGENTS directory
 
