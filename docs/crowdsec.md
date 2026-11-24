@@ -1,6 +1,6 @@
 # CrowdSec and access logs
 
-The image includes CrowdSec's SPOA bouncer, which bans and challenges clients in HAProxy. The CrowdSec engine, which reads HAProxy's access lines and decides whom to ban, runs in its own container. Add it to the `compose.yaml` from [Install HomeProxy](install.md): the `crowdsec` service under `services`, the `configs` block as a new top-level key, and the two `crowdsec-` volumes under the existing `volumes`:
+The image includes CrowdSec's SPOA bouncer, which bans and challenges clients in HAProxy. The CrowdSec engine, which reads HAProxy's access lines and decides whom to ban, runs in its own container. Add it to the `compose.yaml` from [Install HomeProxy](install.md): the `crowdsec` service under `services`, the `configs` block as a new top-level key, and the two `crowdsec-` volumes under the existing `volumes`. To paste one file instead, for example into Komodo, use [`deploy/compose.crowdsec.yaml`](../deploy/compose.crowdsec.yaml), which holds the whole stack with AppSec on, and skip the merges on this page. By hand, the additions are:
 
 ```yaml
 services:
@@ -8,7 +8,7 @@ services:
     # unchanged
 
   crowdsec:
-    image: crowdsecurity/crowdsec:v1.7.8
+    image: crowdsecurity/crowdsec:v1.8.2
     environment:
       COLLECTIONS: crowdsecurity/haproxy
       # Registers HomeProxy's bouncer with this key on the first start.
@@ -166,16 +166,17 @@ crowdsec:
 
 - AppSec checks HTTPS requests only, never `tcp` or `passthrough` routes. Requests from `network.lan_cidrs` and from `crowdsec.allowlist` are not checked, as for bans.
 - A blocked request gets the ban page with status 403. Only that request is refused: HomeProxy and the bouncer never add a decision. An AppSec challenge is answered the same way, with the ban page for that request.
-- The CrowdSec engine can still ban the client's address. Each blocked request is an alert in the engine, and the `crowdsecurity/appsec-vpatch` scenario from the `appsec-virtual-patching` collection bans an address that trips two different rules within about a minute. With the default profile, that ban lasts 4 hours. One rule tripped many times, such as repeated `/.env` probes, does not ban. If a real user is banned by mistake, delete the decision in the dashboard. To never ban from AppSec, remove the scenario in the CrowdSec container with `cscli scenarios remove crowdsecurity/appsec-vpatch`.
+- The CrowdSec engine can still ban the client's address. Each blocked request is an alert in the engine, and the `crowdsecurity/appsec-vpatch` scenario from the `appsec-virtual-patching` collection bans an address that trips two different rules within about a minute. With the default profile, that ban lasts 4 hours. One rule tripped many times, such as repeated `/.env` probes, does not ban. If a real user is banned by mistake, delete the decision in the dashboard. The engine never bans private addresses (its default whitelist), so test a ban from a public address, such as a phone on mobile data. To never ban from AppSec, remove the scenario in the CrowdSec container with `cscli scenarios remove crowdsecurity/appsec-vpatch`.
 - AppSec also reads request bodies up to 50 KB. HAProxy waits up to 1 second for them, and sends larger bodies on without them. Treat AppSec as a light filter for known attacks, not a full firewall.
 - If AppSec is stopped or does not answer, requests go through after at most 0.2 seconds. Your sites never go down with it.
 
-The bouncer looks for AppSec at `crowdsec.appsec_url`. Without it, it uses port 7422, the AppSec component's default, on the host from `crowdsec.lapi_url`. The URL has a scheme, a host and an optional port, and no path. Add three things to the `crowdsec` service from the top of this page, then run `docker compose up -d crowdsec`:
+The bouncer looks for AppSec at `crowdsec.appsec_url`. Without it, it uses port 7422, the AppSec component's default, on the host from `crowdsec.lapi_url`. The URL has a scheme, a host and an optional port, and no path. Change the `crowdsec` service from the top of this page in three places, then run `docker compose up -d crowdsec`. The `COLLECTIONS` line replaces the old one, it is not a second line:
 
 ```yaml
 services:
   crowdsec:
     environment:
+      # Replaces the COLLECTIONS line. Keep all three.
       COLLECTIONS: crowdsecurity/haproxy crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules
     configs:
       # next to crowdsec_haproxy
@@ -197,6 +198,8 @@ configs:
 ```
 
 AppSec accepts the bouncer's own key, so it needs no other key.
+
+If the engine exits with `no appsec-config found for crowdsecurity/appsec-default`, the AppSec collections are missing from `COLLECTIONS`. Set the line above, with all three collections, and start the engine again.
 
 ## Log line format
 

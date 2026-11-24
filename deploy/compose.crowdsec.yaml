@@ -1,0 +1,62 @@
+# HomeProxy with the CrowdSec engine and AppSec, as one file to paste (for
+# example into Komodo). Set CROWDSEC_BOUNCER_KEY (for example
+# `openssl rand -hex 32`) in the environment or in a `.env` file next to this
+# file. The HomeProxy-side settings (crowdsec.lapi_url, crowdsec.syslog, the
+# keys, crowdsec.appsec) are in docs/crowdsec.md.
+
+services:
+  homeproxy:
+    image: ${HOMEPROXY_IMAGE:-ghcr.io/georgegedox/homeproxy:latest}
+    # HAProxy must see the real client address, and it binds the ports in config.yaml.
+    network_mode: host
+    # HAProxy needs NET_BIND_SERVICE, which Docker grants by default. Do not drop it.
+    environment:
+      HOMEPROXY_BOOTSTRAP_LISTEN: "${HOMEPROXY_BOOTSTRAP_LISTEN:-}"
+      HOMEPROXY_PLACEHOLDER_HTTP_PORT: "${HOMEPROXY_PLACEHOLDER_HTTP_PORT:-80}"
+    volumes:
+      - ${HOMEPROXY_DATA:-homeproxy-data}:/data
+    restart: unless-stopped
+
+  crowdsec:
+    image: crowdsecurity/crowdsec:v1.8.2
+    environment:
+      COLLECTIONS: crowdsecurity/haproxy crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules
+      # Registers HomeProxy's bouncer with this key on the first start.
+      BOUNCER_KEY_homeproxy: ${CROWDSEC_BOUNCER_KEY:?set CROWDSEC_BOUNCER_KEY in .env}
+    configs:
+      - source: crowdsec_haproxy
+        target: /etc/crowdsec/acquis.d/haproxy.yaml
+      - source: crowdsec_appsec
+        target: /etc/crowdsec/acquis.d/appsec.yaml
+    ports:
+      - "127.0.0.1:18080:8080"      # LAPI, for crowdsec.lapi_url
+      - "127.0.0.1:15140:514/udp"   # syslog acquisition, for crowdsec.syslog
+      - "127.0.0.1:7422:7422"       # AppSec, for crowdsec.appsec_url
+    volumes:
+      - crowdsec-config:/etc/crowdsec
+      - crowdsec-data:/var/lib/crowdsec/data
+    restart: unless-stopped
+
+configs:
+  crowdsec_haproxy:
+    content: |
+      source: syslog
+      listen_addr: 0.0.0.0
+      listen_port: 514
+      # HAProxy sends lines of up to 4096 bytes. The default, 2048, leaves long lines unparsed.
+      max_message_len: 4096
+      labels:
+        type: syslog
+  crowdsec_appsec:
+    content: |
+      source: appsec
+      appsec_configs:
+        - crowdsecurity/appsec-default
+      listen_addr: 0.0.0.0:7422
+      labels:
+        type: appsec
+
+volumes:
+  homeproxy-data:
+  crowdsec-config:
+  crowdsec-data:

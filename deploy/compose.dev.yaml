@@ -147,7 +147,7 @@ services:
   # component listens on 127.0.0.1:7422, where the bouncer looks for it while
   # `crowdsec.appsec` is on.
   crowdsec:
-    image: crowdsecurity/crowdsec:v1.7.8@sha256:2f527c9bb8b367120eb08b82890aa912ce96bfa1ada93dda0721700e4b4e0dde
+    image: crowdsecurity/crowdsec:v1.8.2@sha256:65b74942f7e7ed5c60fde4ac15fc4ba715904c398c8b16dd451f4907d90347d4
     network_mode: "service:homeproxy"
     environment:
       COLLECTIONS: crowdsecurity/haproxy crowdsecurity/appsec-virtual-patching crowdsecurity/appsec-generic-rules

@@ -18,8 +18,8 @@ from tests.conftest import wait_until
 from tests.integration.haproxy_live import docker
 
 CROWDSEC_IMAGE = (
-    "crowdsecurity/crowdsec:v1.7.8"
-    "@sha256:2f527c9bb8b367120eb08b82890aa912ce96bfa1ada93dda0721700e4b4e0dde"
+    "crowdsecurity/crowdsec:v1.8.2"
+    "@sha256:65b74942f7e7ed5c60fde4ac15fc4ba715904c398c8b16dd451f4907d90347d4"
 )
 
 

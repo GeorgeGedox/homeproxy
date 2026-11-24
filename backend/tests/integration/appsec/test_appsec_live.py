@@ -172,6 +172,8 @@ def start(prefix: str, seed_dir: Path) -> Lab:
         f"--network={network}",
         f"--env=BOUNCER_KEY_homeproxy={BOUNCER_KEY}",
         f"--env=COLLECTIONS={COLLECTIONS}",
+        # The test client has a private address, which this default whitelist never lets ban.
+        "--env=DISABLE_PARSERS=crowdsecurity/whitelists",
         "--env=DISABLE_ONLINE_API=true",
         "--env=CROWDSEC_BYPASS_DB_VOLUME_CHECK=true",
         f"--volume={acquisition}:/etc/crowdsec/acquis.d/appsec.yaml:ro",
@@ -249,6 +251,32 @@ def test_env_probe_gets_the_ban_page_with_appsec_on(lab: Lab) -> None:
     assert probe.status_code == 403
     assert "<title>CrowdSec Ban</title>" in probe.text
     assert lab.get("/").text == "upstream"
+
+
+def test_two_different_rules_ban_the_client(lab: Lab) -> None:
+    """`docs/crowdsec.md` says the hub's `crowdsecurity/appsec-vpatch` scenario bans a client that
+    trips two different rules within about a minute."""
+    cscli = ["docker", "exec", lab.crowdsec, "cscli", "decisions"]
+    scenario = ["--scenario", "crowdsecurity/appsec-vpatch"]
+
+    def banned() -> bool:
+        listed = subprocess.run([*cscli, "list", *scenario, "-o", "json"], capture_output=True)
+        return bool(json.loads(listed.stdout or "null"))
+
+    try:
+        assert lab.get("/.git/config").status_code == 403
+        assert lab.get(PROBE).status_code == 403
+        wait_until(banned, "the AppSec ban", timeout=STARTUP_TIMEOUT, interval=0.5)
+    finally:
+        subprocess.run([*cscli, "delete", *scenario], capture_output=True)
+        # The bouncer pulls the removal within 10 s.
+        wait_until(
+            lambda: lab.get("/").status_code == 200,
+            "the unban",
+            timeout=STARTUP_TIMEOUT,
+            interval=0.5,
+            not_yet=(Exception,),
+        )
 
 
 def test_env_probe_passes_with_appsec_off(lab: Lab) -> None:
