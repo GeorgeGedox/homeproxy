@@ -6,13 +6,9 @@ const props = defineProps<{ domain?: Domain }>();
 const dirty = defineModel<boolean>("dirty", { required: true });
 const emit = defineEmits<{ saved: [] }>();
 
-const api = useApi();
 const pending = usePending();
 const { providers, load: loadProviders } = useDnsProviders();
-const { form, providerCode, reset, pickProvider, pickStored } = useDomainForm();
-const stored = ref<StoredCredential[]>([]);
-/** Without the stored credentials, a save could drop typed keys or name new ones over stored ones. */
-const loadError = ref("");
+const { form, providerCode, stored, loadError, load, pickProvider, pickStored, save } = useDomainForm();
 const busy = ref(false);
 const formRef = useTemplateRef("formRef");
 const { error: refused, show: showRefused, clear: clearRefused } = useFormError(formRef);
@@ -31,18 +27,15 @@ const storedHere = computed(() => stored.value.filter((credential) => credential
 const zone = computed(() => props.domain?.zone ?? form.zone.trim());
 
 async function start(): Promise<void> {
-  reset(props.domain);
   clearRefused();
-  const [, list] = await Promise.all([loadProviders(), api.GET("/api/v1/credentials")]);
-  stored.value = list.data ?? [];
-  loadError.value = list.data ? "" : apiErrorMessage(list.error, "The stored credentials could not be loaded.");
+  await Promise.all([loadProviders(), load(props.domain)]);
   clean.value = JSON.stringify(form);
 }
 onMounted(start);
 
 /** A new choice of provider starts from its stored credentials; the domain's own provider keeps its own. */
 function pick(code: string): void {
-  pickProvider(code, stored.value);
+  pickProvider(code);
   if (props.domain && code === props.domain.dns_provider) form.stored = props.domain.credentials ?? "";
 }
 
@@ -52,27 +45,12 @@ function choose(kind: HttpsKind): void {
   if (kind === "other") pick("");
 }
 
-async function saveCredentials(): Promise<boolean> {
-  const update = credentialUpdate(form, stored.value.find((credential) => credential.name === form.stored));
-  if (!update) return true;
-  const { response, error: failure } = await api.PUT("/api/v1/credentials/{name}", { params: { path: { name: form.stored } }, body: update });
-  if (!response.ok) showRefused(failure, "The credentials were not saved.");
-  return response.ok;
-}
-
 async function submit(): Promise<void> {
   if (loadError.value) return;
   busy.value = true;
   clearRefused();
   try {
-    if (!(await saveCredentials())) return;
-    const { response, error: failure } = props.domain
-      ? await api.PUT("/api/v1/domains/{zone}", { params: { path: { zone: props.domain.zone } }, body: domainBody(form) })
-      : await api.POST("/api/v1/domains", { body: domainBody(form) });
-    if (!response.ok) {
-      showRefused(failure, "The domain was not staged.");
-      return;
-    }
+    if (!(await save(props.domain, showRefused))) return;
     clean.value = JSON.stringify(form);
     await Promise.all([pending.refresh(), nextTick()]);
     emit("saved");
@@ -109,7 +87,7 @@ async function submit(): Promise<void> {
     <section v-if="provider" class="space-y-4 border-t border-default pt-6">
       <h3 class="text-base font-medium text-highlighted">{{ provider.name }} credentials</h3>
       <DomainsCredentials
-        :chosen="form.stored" v-model:name="form.credentials" @choose="pickStored($event, stored)" v-model:token="form.token" v-model:env="form.env"
+        :chosen="form.stored" v-model:name="form.credentials" @choose="pickStored" v-model:token="form.token" v-model:env="form.env"
         v-model:replacing="form.replacing" :provider="provider" :stored="storedHere" :zone="zone"
       />
     </section>
