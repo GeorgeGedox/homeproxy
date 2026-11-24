@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
 from homeproxy.api.domains import check_credential_values
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
 from homeproxy.certs.providers import CLOUDFLARE
 from homeproxy.models import Domain, StrictModel
@@ -86,7 +86,7 @@ def _view(name: str, credential: DnsCredential, domains: list[Domain]) -> Creden
 def _stored(store: Store, name: str) -> DnsCredential:
     credential = store.load_secrets().dns_credentials.get(name)
     if credential is None:
-        raise AuthError(404, "credentials_not_found", "No credentials are stored under this name.")
+        raise ApiError(404, "credentials_not_found", "No credentials are stored under this name.")
     return credential
 
 
@@ -118,16 +118,16 @@ def replace_credential(
     field = "api_token" if stored.provider == CLOUDFLARE else "env"
     if any(v is None and n not in stored.env for n, v in body.env.items()):
         message = "A variable sent as null has no stored value to keep."
-        raise AuthError(422, "credentials_not_stored", message, field="env")
+        raise ApiError(422, "credentials_not_stored", message, field="env")
     env = {n: stored.env[n] if v is None else v for n, v in body.env.items()}
     token = body.api_token or stored.api_token
     if token is None and not env:
         message = "Send the new values. A replace with none would erase the credentials."
-        raise AuthError(422, "credentials_empty", message, field=field)
+        raise ApiError(422, "credentials_empty", message, field=field)
     try:
         check_credentials(stored.provider, token, env)
     except ValueError as error:
-        raise AuthError(422, "credentials_provider", str(error), field=field) from None
+        raise ApiError(422, "credentials_provider", str(error), field=field) from None
     with edit_lock(store) as held:
         domains = _domains(store, held)
     # A kept token passed this check when it was stored, so only a new one is checked.
@@ -160,7 +160,7 @@ def delete_credential(name: str, runtime: Runtime) -> Response:
         zones = _zones(_domains(store, held), name)
         if zones:
             message = f"Domains use these credentials: {', '.join(zones)}."
-            raise AuthError(409, "credentials_in_use", message)
+            raise ApiError(409, "credentials_in_use", message)
         tree = load_tree(store.secrets_path)
         del tree["dns_credentials"][name]
         store.save_secrets(tree, held)

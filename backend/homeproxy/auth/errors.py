@@ -66,11 +66,6 @@ def setup_required() -> AuthError:
     return AuthError(409, "setup_required", "HomeProxy is not set up yet. Finish setup first.")
 
 
-def changes_pending() -> AuthError:
-    """A change saved at once is refused while staged changes wait for an apply."""
-    return AuthError(409, "changes_pending", "Apply or discard pending changes first.")
-
-
 def unavailable(message: str) -> AuthError:
     """The files auth needs cannot be read."""
     return AuthError(503, "auth_unavailable", message)

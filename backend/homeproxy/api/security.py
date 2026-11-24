@@ -14,8 +14,7 @@ from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
 
 from homeproxy.api.apply import ServicesDep
-from homeproxy.auth import errors
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError, changes_pending
 from homeproxy.auth.routes import Runtime
 from homeproxy.crowdsec import (
     ChangesPending,
@@ -89,7 +88,7 @@ def _lapi(store: Store) -> LapiClient:
     machine_id = machine.machine_id.get_secret_value()
     password = machine.machine_password.get_secret_value()
     if not crowdsec.enabled or crowdsec.lapi_url is None or not machine_id or not password:
-        raise AuthError(
+        raise ApiError(
             409,
             "crowdsec_not_configured",
             "Turn CrowdSec on in Settings, set its API URL, machine ID and machine password there, "
@@ -98,8 +97,8 @@ def _lapi(store: Store) -> LapiClient:
     return LapiClient(crowdsec.lapi_url, machine_id, password)
 
 
-def _lapi_failed(error: LapiError) -> AuthError:
-    return AuthError(502, "crowdsec_error", str(error))
+def _lapi_failed(error: LapiError) -> ApiError:
+    return ApiError(502, "crowdsec_error", str(error))
 
 
 @router.get("/security/decisions", response_model=list[Decision], responses=_LAPI_RESPONSES)
@@ -139,7 +138,7 @@ def add_decision(body: NewDecision, runtime: Runtime) -> Response:
     try:
         client.add_decision(body.value, body.type, timedelta(seconds=body.duration_seconds))
     except ValueError as error:
-        raise AuthError(422, "validation_failed", str(error), field="value") from None
+        raise ApiError(422, "validation_failed", str(error), field="value") from None
     except LapiError as error:
         raise _lapi_failed(error) from None
     store.audit.record("admin", "security.decision.add", body.model_dump())
@@ -195,11 +194,11 @@ def _edit_allowlist(
     try:
         entries = edit(store, services.pipeline.client, entry)
     except ChangesPending:
-        raise errors.changes_pending() from None
+        raise changes_pending() from None
     except HAProxyError as error:
         store.audit.record("admin", action, {"entry": entry})
         message = f"The allowlist is saved, but HAProxy was not updated: {error}. Send it again."
-        raise AuthError(502, "haproxy_error", message) from None
+        raise ApiError(502, "haproxy_error", message) from None
     store.audit.record("admin", action, {"entry": entry})
     return entries
 

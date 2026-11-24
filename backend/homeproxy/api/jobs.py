@@ -3,7 +3,7 @@
 from fastapi import APIRouter
 
 from homeproxy.api.apply import ServicesDep
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.jobs import Job, UnknownJob
 
 router = APIRouter(prefix="/api/v1", tags=["jobs"])
@@ -21,4 +21,4 @@ def get_job(job_id: str, services: ServicesDep) -> Job:
     try:
         return services.jobs.tracker.get(job_id)
     except UnknownJob:
-        raise AuthError(404, "job_not_found", "No job has this id.") from None
+        raise ApiError(404, "job_not_found", "No job has this id.") from None

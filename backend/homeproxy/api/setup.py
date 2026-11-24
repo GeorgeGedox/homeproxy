@@ -25,7 +25,7 @@ from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
 from homeproxy.api.apply import ServicesDep, apply
 from homeproxy.api.auth import new_password_hash
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import ClientAddress, Runtime
 from homeproxy.auth.server import bootstrap_listen
 from homeproxy.auth.setup_detection import (
@@ -144,7 +144,7 @@ def setup(
         values = setup_values(body, detect_host_setup(), peer)
         missing = values.missing()
         if missing:
-            raise AuthError(
+            raise ApiError(
                 422,
                 "validation_failed",
                 f"{', '.join(missing)}: HomeProxy cannot detect this value. Send it.",
@@ -153,7 +153,7 @@ def setup(
         sent = {f"network.{name}" for name in body.network.model_fields_set}
         taken = [path for path in taken_ports() if path not in sent]
         if taken:
-            raise AuthError(
+            raise ApiError(
                 422,
                 "validation_failed",
                 f"{', '.join(taken)}: another program listens on this port. Send a free one.",

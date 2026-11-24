@@ -23,7 +23,7 @@ from ruamel.yaml.comments import CommentedMap
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
 from homeproxy.api.countries import check_added_countries
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError, not_found
 from homeproxy.auth.routes import Runtime
 from homeproxy.haproxy.apply_rules import HOST_SETTINGS, check_rules, host_group, path_only_hosts
 from homeproxy.models import (
@@ -146,16 +146,12 @@ class HostSaved(BaseModel):
     warnings: list[str]
 
 
-def _not_found() -> AuthError:
-    return AuthError(404, "route_not_found", "No route has this name.")
-
-
 def _path(store: Store, name: str) -> str:
     """Return the pending path of a route, or answer 404 for a name no route can have."""
     try:
         store.route_path(name)
     except InvalidRouteName:
-        raise _not_found() from None
+        raise not_found("route", "name") from None
     return f"routes/{name}.yaml"
 
 
@@ -163,7 +159,7 @@ def read_route(store: Store, name: str, held: HeldLock) -> tuple[CommentedMap, R
     """Return a route's tree and model as the next apply sees them, or answer 404."""
     data = PendingChanges(store).read(_path(store, name), held)
     if data is None:
-        raise _not_found()
+        raise not_found("route", "name")
     tree = parse_tree(data, f"{name}.yaml")
     return tree, validate_route(tree, f"{name}.yaml")
 
@@ -306,7 +302,7 @@ def create_route(draft: RouteDraft, runtime: Runtime, services: ServicesDep) -> 
         body = _named(store, draft, held)
         path = _path(store, body.name)
         if _name_taken(store, body.name, held):
-            raise AuthError(409, "route_exists", "A route has this name.", field="name")
+            raise ApiError(409, "route_exists", "A route has this name.", field="name")
         _check_countries(services, store, [], body)
         edits = _site_edits(pending, body, body.name, held)
         pending.stage_tree(path, _merge(CommentedMap(), None, body), held)
@@ -345,7 +341,7 @@ def update_route(name: str, body: RouteBody, runtime: Runtime, services: Service
         path = _path(store, body.name)
         renamed = body.name != name
         if renamed and _rename_taken(store, name, body.name, held):
-            raise AuthError(409, "route_exists", "A route has this name.", field="name")
+            raise ApiError(409, "route_exists", "A route has this name.", field="name")
         # An unchanged route still sets its site settings, so a save mends a split site.
         edits = _site_edits(pending, body, name, held)
         if body != old:
@@ -366,7 +362,7 @@ def delete_route(name: str, runtime: Runtime) -> Response:
     with edit_lock(store) as held:
         path = _path(store, name)
         if pending.read(path, held) is None:
-            raise _not_found()
+            raise not_found("route", "name")
         pending.stage_delete(path, held)
     return Response(status_code=204)
 
@@ -447,7 +443,7 @@ def _host_edit(pending: PendingChanges, path: str, data: bytes, old: Route, new:
     except ValidationFailed as error:
         loc = error.errors[0]["loc"] if error.errors else ()
         field = ".".join(str(segment) for segment in loc) or None
-        raise AuthError(422, "validation_failed", str(error), field=field) from None
+        raise ApiError(422, "validation_failed", str(error), field=field) from None
     return edited
 
 
@@ -467,7 +463,7 @@ def update_host(host: str, settings: HostSettings, runtime: Runtime) -> HostSave
         overlay = pending.load_overlay(held)
         group = host_group(overlay.routes, host)
         if not group:
-            raise AuthError(404, "host_not_found", "No route has this host.")
+            raise ApiError(404, "host_not_found", "No route has this host.")
         path_of = {id(route): path for path, route in overlay.route_files.items()}
         changed = [_with_host_settings(route, settings) for route in group]
         edits: dict[str, bytes] = {}

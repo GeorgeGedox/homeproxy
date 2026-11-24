@@ -7,8 +7,8 @@ from fastapi import APIRouter
 from pydantic import BaseModel, SecretStr
 
 from homeproxy.api.changes import edit_lock
+from homeproxy.api.errors import ApiError
 from homeproxy.api.routes import read_route
-from homeproxy.auth.errors import AuthError
 from homeproxy.auth.routes import Runtime
 from homeproxy.models import HttpRoute, StrictModel
 from homeproxy.models.fields import BasicAuthUser
@@ -52,7 +52,7 @@ def put_basic_auth(name: str, body: BasicAuthChange, runtime: Runtime) -> BasicA
     with edit_lock(store) as held:
         route = read_route(store, name, held)[1]
         if not body.users and isinstance(route, HttpRoute) and route.auth.type == "basic":
-            raise AuthError(
+            raise ApiError(
                 400, "users_required", "A route with basic auth needs a user.", field="users"
             )
         passwords = {
@@ -62,6 +62,6 @@ def put_basic_auth(name: str, body: BasicAuthChange, runtime: Runtime) -> BasicA
         try:
             set_basic_auth(store, name, passwords, held)
         except BasicAuthError as error:
-            raise AuthError(400, "invalid_basic_auth", str(error), field="users") from None
+            raise ApiError(400, "invalid_basic_auth", str(error), field="users") from None
         users = sorted(store.load_secrets().basic_auth.get(name, {}))
     return BasicAuthUsers(users=users)

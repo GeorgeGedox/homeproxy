@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
 from homeproxy.cloudflare import CloudflareError, ReconcileError, ZoneResult, purge, reconcile
 from homeproxy.cloudflare.ddns import DdnsError, DdnsResult, adopt
@@ -73,7 +73,7 @@ def run_reconcile(services: ServicesDep) -> ReconcileRun:
     try:
         run = services.reconcile.run()
     except ReconcileError as error:
-        raise AuthError(409, "reconcile_refused", str(error)) from None
+        raise ApiError(409, "reconcile_refused", str(error)) from None
     services.ddns.submit(services.jobs)
     return run
 
@@ -112,9 +112,9 @@ def adopt_ddns(zone: str, runtime: Runtime, services: ServicesDep) -> DdnsResult
     try:
         result = adopt(store.load_config(), store.load_secrets(), zone)
     except DdnsError as error:
-        raise AuthError(409, "adopt_refused", str(error)) from None
+        raise ApiError(409, "adopt_refused", str(error)) from None
     except CloudflareError as error:
-        raise AuthError(502, "cloudflare_error", str(error)) from None
+        raise ApiError(502, "cloudflare_error", str(error)) from None
     if result.action == "adopted":
         store.audit.record("admin", "cloudflare.adopt", {"zone": zone, "record": result.record})
     services.ddns.submit(services.jobs)

@@ -9,6 +9,7 @@ from fastapi import APIRouter, Response
 from pydantic import SecretStr
 from ruamel.yaml.scalarstring import DoubleQuotedScalarString
 
+from homeproxy.api.errors import ApiError, changes_pending
 from homeproxy.auth import errors
 from homeproxy.auth.passwords import PasswordRejected, hash_password, verify_password
 from homeproxy.auth.routes import ClientAddress, CurrentSession, Runtime, set_session_cookie
@@ -29,11 +30,11 @@ class PasswordChange(StrictModel):
 
 
 def new_password_hash(password: SecretStr, field: str) -> str:
-    """Hash a new dashboard password, or raise a 422 `AuthError` that names `field`."""
+    """Hash a new dashboard password, or raise a 422 `ApiError` that names `field`."""
     try:
         return hash_password(password.get_secret_value())
     except PasswordRejected as error:
-        raise errors.AuthError(422, "invalid_password", str(error), field=field) from None
+        raise ApiError(422, "invalid_password", str(error), field=field) from None
 
 
 @router.put(
@@ -63,13 +64,13 @@ def change_password(
     if not verify_password(current.password_hash, body.current_password.get_secret_value()):
         runtime.throttle.record_failure(peer)
         logger.warning("wrong current password in a password change from %s", peer)
-        raise errors.AuthError(
+        raise ApiError(
             403, "invalid_password", "The current password is wrong.", field="current_password"
         )
     store = runtime.store
     with store.lock() as held:
         if PendingChanges(store).status(held).changes:
-            raise errors.changes_pending()
+            raise changes_pending()
         password_hash = new_password_hash(body.new_password, "new_password")
         tree = load_tree(store.config_path)
         tree["dashboard"]["password_hash"] = DoubleQuotedScalarString(password_hash)

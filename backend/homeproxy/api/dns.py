@@ -12,7 +12,7 @@ from pydantic import BaseModel, ValidationError
 from ruamel.yaml.comments import CommentedMap
 
 from homeproxy.api.changes import edit_lock
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
 from homeproxy.dns.snapshot import FILE_NAME, Snapshot, load_snapshot
 from homeproxy.models import Config, Route, TcpRoute, route_label
@@ -76,9 +76,9 @@ def create_record(body: DnsRecord, runtime: Runtime) -> DnsRecord:
         tree, config = _config_tree(store, held)
         if domain_of(body.name, config.domains) is None:
             message = "The name is in none of your domains. Add its domain on Domains first."
-            raise AuthError(422, "outside_domains", message, field="name")
+            raise ApiError(422, "outside_domains", message, field="name")
         if any(record.name == body.name for record in config.dns_records):
-            raise AuthError(409, "record_exists", "A record has this name already.", field="name")
+            raise ApiError(409, "record_exists", "A record has this name already.", field="name")
         _check_route_hosts(body.name, PendingChanges(store).load_overlay(held).routes)
         tree.setdefault("dns_records", []).append(body.model_dump(mode="json"))
         PendingChanges(store).stage_tree(CONFIG_FILE, tree, held)
@@ -88,7 +88,7 @@ def create_record(body: DnsRecord, runtime: Runtime) -> DnsRecord:
 def _check_route_hosts(name: str, routes: Iterable[Route]) -> None:
     for route in routes:
         if not isinstance(route, TcpRoute) and route.enabled and name in route.hosts:
-            raise AuthError(
+            raise ApiError(
                 409,
                 "route_host",
                 f"The site {route_label(route)} answers for this name."
@@ -111,7 +111,7 @@ def delete_record(name: str, runtime: Runtime) -> Response:
         records = config.dns_records
         index = next((i for i, record in enumerate(records) if record.name == name), None)
         if index is None:
-            raise AuthError(404, "record_not_found", "No extra record has this name.")
+            raise ApiError(404, "record_not_found", "No extra record has this name.")
         del tree["dns_records"][index]
         PendingChanges(store).stage_tree(CONFIG_FILE, tree, held)
     return Response(status_code=204)

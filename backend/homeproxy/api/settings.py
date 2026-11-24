@@ -22,8 +22,7 @@ from starlette.concurrency import run_in_threadpool
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
 from homeproxy.api.countries import check_added_countries
-from homeproxy.auth import errors
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError, changes_pending
 from homeproxy.auth.listen import WINDOW_SCOPE_KEY, ListenRefused, PendingListen
 from homeproxy.auth.routes import Runtime
 from homeproxy.auth.server import default_route_address, split_listen
@@ -171,7 +170,7 @@ def _check_heartbeat(store: Store, current: Notifications, new: Notifications) -
     if not new.heartbeat.enabled or current.heartbeat.enabled:
         return
     if not store.load_secrets().notifications.heartbeat_url.get_secret_value():
-        raise AuthError(
+        raise ApiError(
             422,
             "validation_failed",
             "Set the heartbeat URL before you turn the heartbeat on.",
@@ -202,7 +201,7 @@ def _check_ports(before: Config, after: Config, load_routes: Callable[[], Iterab
     if not clashes:
         return
     field = next((f for f in changed if _PORT_FIELDS[f] in clashes[0]), None)
-    raise AuthError(422, "port_clash", "; ".join(clashes), field=field)
+    raise ApiError(422, "port_clash", "; ".join(clashes), field=field)
 
 
 MIN_SESSION_SECONDS = 300
@@ -247,7 +246,7 @@ def _saved_dashboard(store: Store, body: DashboardInput) -> Dashboard:
         saved = validate_config(load_tree(store.config_path), store.config_path.name).dashboard
         changes = (body.listen, body.session_ttl) != (saved.listen, saved.session_ttl)
         if changes and PendingChanges(store).status(held).changes:
-            raise errors.changes_pending()
+            raise changes_pending()
     return saved
 
 
@@ -284,7 +283,7 @@ def _check_listen(store: Store, listen: str) -> None:
     before = set(check_rules(overlay, store.load_secrets))
     errors = [error for error in check_rules(draft, store.load_secrets) if error not in before]
     if errors:
-        raise AuthError(422, "listen_refused", "; ".join(errors), field="listen")
+        raise ApiError(422, "listen_refused", "; ".join(errors), field="listen")
 
 
 def _check_overlap(saved: str, listen: str) -> None:
@@ -298,7 +297,7 @@ def _check_overlap(saved: str, listen: str) -> None:
         f"The dashboard listens on {saved} until you confirm the move, and {listen} needs the "
         f"same port. Move to another port first, then to {listen}."
     )
-    raise AuthError(422, "listen_unavailable", message, field="listen")
+    raise ApiError(422, "listen_unavailable", message, field="listen")
 
 
 def _save_listen(store: Store, listen: str) -> bool:
@@ -336,7 +335,7 @@ async def _save_here(runtime: Runtime, listen: str) -> Dashboard:
     await run_in_threadpool(_check_listen, store, listen)
     await runtime.listen_change.cancel()
     if not await run_in_threadpool(_save_listen, store, listen):
-        raise AuthError(503, "save_failed", "dashboard.listen could not be saved. Check the log.")
+        raise ApiError(503, "save_failed", "dashboard.listen could not be saved. Check the log.")
     logger.info("dashboard.listen saved from the fallback address: %s", listen)
     return store.load_config().dashboard
 
@@ -378,7 +377,7 @@ async def put_dashboard(body: DashboardInput, request: Request, runtime: Runtime
             url = _url(body.listen, request)
             await change.begin(request.app, body.listen, url, partial(_save_listen, store))
         except ListenRefused as error:
-            raise AuthError(422, "listen_unavailable", str(error), field="listen") from None
+            raise ApiError(422, "listen_unavailable", str(error), field="listen") from None
     if body.session_ttl != saved.session_ttl:
         saved = await run_in_threadpool(_save_session_ttl, store, body.session_ttl)
     return _view(runtime, saved)
