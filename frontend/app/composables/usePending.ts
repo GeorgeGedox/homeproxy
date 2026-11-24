@@ -29,11 +29,7 @@ export function usePending() {
   const handEdit = computed(() => !review.value?.changes.length && Boolean(review.value?.generated_diff || review.value?.generated_error));
 
   async function refresh(): Promise<void> {
-    try {
-      review.value = (await api.GET("/api/v1/changes")).data ?? null;
-    } catch {
-      review.value = null;
-    }
+    review.value = (await api.GET("/api/v1/changes")).data ?? null;
   }
 
   /** The Cloudflare reconcile runs after the apply. Its failure never fails the apply. */
