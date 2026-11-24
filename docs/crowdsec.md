@@ -40,7 +40,7 @@ configs:
     content: |
       # HomeProxy answers a host that no route serves from its be_unknown_host backend. Real
       # visitors never ask for one, but scanners ask for the bare IP, a random name or no name.
-      # The second such request in about 10 minutes bans the client. A browser also asks for
+      # The second such request in about 10 minutes bans the client. A browser can also ask for
       # /favicon.ico after the page, so that request does not count.
       type: leaky
       name: homeproxy/unknown-host
@@ -115,16 +115,16 @@ CrowdSec reads HTTP access lines only. Its HAProxy parser (`crowdsecurity/haprox
 
 Scanners send requests to the bare IP of your server, to a random host name, or with no host name. A real visitor uses the host name of a site. HomeProxy answers a request for a host that no route serves with `404 Not Found`, from the `be_unknown_host` backend.
 
-The `homeproxy/unknown-host` scenario bans a client that sends two such requests in about 10 minutes. With the default profile, the ban lasts 4 hours. One request does not cause a ban, because a person can type a wrong address one time. A browser also asks for `/favicon.ico` after the page, so the scenario does not count that request.
+The `homeproxy/unknown-host` scenario bans a client that sends two of these requests in about 10 minutes. With the default profile, the ban lasts 4 hours. One request does not cause a ban, because a person can type a wrong address one time. A browser can also ask for `/favicon.ico` after the page, so the scenario does not count that request.
 
 These requests do not count:
 
 - A request for a host that a route serves, on a path that no route of that host serves.
-- A request for a host of a route that is switched off.
-- A plain HTTP request. HomeProxy moves it to HTTPS, and the scenario counts the HTTPS request only.
-- A request through Cloudflare. CrowdSec never bans Cloudflare's addresses (its `crowdsecurity/cdn-whitelist`).
+- A request for the host of a route that is switched off.
+- A plain HTTP request. HomeProxy sends the client to HTTPS, and the scenario counts only the HTTPS request.
+- A request through Cloudflare. CrowdSec never bans the addresses of Cloudflare, because of its `crowdsecurity/cdn-whitelist`.
 
-A request for the host of a route that you deleted counts. If a visitor is banned by mistake, delete the decision on the Security page. To stop these bans, remove the `crowdsec_unknown_host` lines from `compose.yaml` and run `docker compose up -d crowdsec`.
+A request for the host of a route that you deleted counts. If the scenario bans a visitor by mistake, delete the decision on the Security page. To stop these bans, remove the `crowdsec_unknown_host` lines from `compose.yaml`, then run `docker compose up -d crowdsec`.
 
 ## Settings
 

@@ -53,7 +53,7 @@ configs:
     content: |
       # HomeProxy answers a host that no route serves from its be_unknown_host backend. Real
       # visitors never ask for one, but scanners ask for the bare IP, a random name or no name.
-      # The second such request in about 10 minutes bans the client. A browser also asks for
+      # The second such request in about 10 minutes bans the client. A browser can also ask for
       # /favicon.ico after the page, so that request does not count.
       type: leaky
       name: homeproxy/unknown-host

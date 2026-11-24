@@ -344,15 +344,17 @@ def render(
     """Render every file of a release, without touching the disk.
 
     `routes` are the routes from `routes/*.yaml`. Rules that need more than one file, such as
-    duplicate hosts, belong to the apply pipeline and are not checked here. A disabled route is left
-    out. A `passthrough` route adds the SNI layer in front of the HTTPS frontend, and `sni.map`. The
-    HTTPS frontend answers 421 for its hosts, so a browser that reuses a connection for one of them
-    connects again. A `tcp` route listens on its own port. A `redirect` route has no backend: its
-    hosts answer with the redirect in `redirect.map`, over HTTPS and plain HTTP alike. Exposure and
-    GeoIP apply to every route type through the same maps, keyed by backend. A host with `http`
-    routes on different paths is in `paths.map` instead of `hosts.map`. An `http` or `redirect`
-    route on a domain with no certificate is in `plain-http.map`: it is served on the HTTP port
-    only, with no HTTPS redirect and no HSTS, and its hosts are unknown on the HTTPS port.
+    duplicate hosts, belong to the apply pipeline and are not checked here. A disabled route has no
+    backend, and its hosts answer 404 as known hosts. A `passthrough` route adds the SNI layer in
+    front of the HTTPS frontend, and `sni.map`. The HTTPS frontend answers 421 for its hosts, so a
+    browser that reuses a connection for one of them connects again. A `tcp` route listens on its
+    own port. A `redirect` route has no backend: its hosts answer with the redirect in
+    `redirect.map`, over HTTPS and plain HTTP alike. Exposure and GeoIP apply to every route type
+    through the same maps, keyed by backend. A host with `http` routes on different paths is in
+    `paths.map` instead of `hosts.map`. An `http` or `redirect` route on a domain with no
+    certificate is in `plain-http.map`: it is served on the HTTP port only, with no HTTPS redirect
+    and no HSTS, and its hosts answer 404 on the HTTPS port. A host that no route serves answers
+    404 from `be_unknown_host`, which the CrowdSec scenario in `docs/crowdsec.md` counts.
 
     `includes` maps the name of each hand-written `includes/<name>.cfg` to its text. Each one is
     copied unchanged to `conf.d/90-include-<name>.cfg`, so HAProxy loads it after the generated
