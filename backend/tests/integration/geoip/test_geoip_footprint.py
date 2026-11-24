@@ -210,6 +210,7 @@ def container(tmp_path_factory: pytest.TempPathFactory) -> Iterator[tuple[str, d
             "--env=HOMEPROXY_DEV_SELF_SIGNED=1",
             "--env=HOMEPROXY_CF_RANGES_URL=http://127.0.0.1:9",
             "--env=HOMEPROXY_RELEASES_URL=http://127.0.0.1:9/",
+            "--env=HOMEPROXY_UPDATE_URL=http://127.0.0.1:9",
             f"--env=HOMEPROXY_GEOIP_URL=http://127.0.0.1:{DOWNLOADS_PORT}",
             image(),
         )

@@ -2,7 +2,7 @@ name: ci
 
 on:
   push:
-    branches: [main]
+    branches: [dev]
   pull_request:
 
 permissions:
@@ -28,3 +28,4 @@ jobs:
         run: gitleaks dir --no-banner --redact
       - name: Check
         run: mise run check
+

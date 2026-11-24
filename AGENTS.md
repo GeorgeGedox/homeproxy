@@ -83,6 +83,7 @@ Development tools are pinned in `mise.toml`. Run `mise install` once.
 | `mise run dev` | Start the dev stack with its data volume as it is (empty on first start). `-- seed` loads the example data, `-- reset` deletes the data |
 | `mise run api-client` | Regenerate the TypeScript client and JSON schema |
 | `mise run golden-update` | Update golden files. Review the diff |
+| `mise run bump <kind>` | Bump the version (`major`, `minor` or `patch`) on `dev` and print the release steps |
 
 Each command is one executable file in `mise-tasks/`.
 
@@ -135,14 +136,16 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 ## Workflow
 
 - `main` holds the latest release and is the default branch. All work goes to `dev`.
-- For an issue: make a branch from `dev`, then open a PR into `dev` with `gh pr create --base dev`. Put `Closes #N` in the PR description. The PR is squashed, so the issue closes when the release reaches `main`.
-- A small change that you can do and test in one session can go straight to `dev` as a commit.
+- Commit straight to `dev` by default. There is one maintainer, so a branch only adds steps.
+- For a small issue, put `Closes #N` in the commit message. The issue closes when the release reaches `main`.
+- Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions or work that needs a review. Put `Closes #N` in the PR description. The PR is squashed, so the keyword reaches `main` in the squash commit.
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`.
+- Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 
-To release, bump the version in `backend/pyproject.toml` on `dev` and run `uv lock`, then open a PR from `dev` into `main`. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
+To release, run `mise run bump <kind>` on a clean `dev`, commit and push. Then open a PR from `dev` into `main` with the `release` label. Its checks run the integration and end-to-end tests, and they fail if the version is already released. Merge it with a merge commit, never a squash. The merge publishes the image and the GitHub release.
 
 ## The AGENTS directory
 

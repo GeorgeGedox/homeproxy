@@ -30,7 +30,8 @@ frontend placeholder
 
 # The upstream answers with the X-Forwarded-For and the number of CF-Connecting-IP headers it got.
 # Each relay reports the source port of its connection to the HTTPS frontend, so a test can tell
-# that two requests shared one connection.
+# that two requests shared one connection. `http-reuse never` keeps that connection private to
+# the client's session; by default a later request may take another session's idle connection.
 RELAYS = """\
 listen test_upstream
     bind 127.0.0.1:9000
@@ -40,6 +41,7 @@ lf-string "%[req.fhdr(x-forwarded-for)]|%[req.fhdr_cnt(cf-connecting-ip)]"
     f"""
 listen relay_{port}
     bind :{port}
+    http-reuse never
     http-response set-header X-Relay-Port %[bc_src_port]
     server https 127.0.0.1:{HTTPS_PORT} ssl verify none source {source}
 """

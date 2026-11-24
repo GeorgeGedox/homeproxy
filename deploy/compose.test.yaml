@@ -23,6 +23,7 @@ services:
       HOMEPROXY_CF_RANGES_URL: "http://127.0.0.1:9"
       HOMEPROXY_RELEASES_URL: "http://127.0.0.1:9/"
       HOMEPROXY_GEOIP_URL: "http://127.0.0.1:9"
+      HOMEPROXY_UPDATE_URL: "http://127.0.0.1:9"
     ports:
       - "127.0.0.1::${HOMEPROXY_TEST_API_PORT:-8443}"
       - "127.0.0.1::${HOMEPROXY_TEST_HTTP_PORT:-80}"

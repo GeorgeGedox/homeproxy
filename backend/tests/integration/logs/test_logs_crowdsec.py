@@ -240,12 +240,18 @@ def test_crowdsec_parses_access_lines(setup: Setup) -> None:
     https = setup.ports[HTTPS_PORT]
 
     # CrowdSec installs its collection first. Lines it receives before it listens are lost.
+    # HAProxy may not listen yet either: Docker's port forward then resets or closes the
+    # connection, which shows as a connection or TLS error.
     def crowdsec_receives() -> bool:
         assert https_request(https, "app.example.com", "/warm-up") == 200
         return setup.counts().parser_hits > 0
 
     wait_until(
-        crowdsec_receives, "CrowdSec to read HAProxy's lines", timeout=STARTUP_TIMEOUT, interval=1.0
+        crowdsec_receives,
+        "CrowdSec to read HAProxy's lines",
+        timeout=STARTUP_TIMEOUT,
+        interval=1.0,
+        not_yet=(ConnectionError, ssl.SSLError),
     )
     # A warm-up line still on its way would count below. Some were lost, so no count says when
     # the last one is in.

@@ -1,0 +1,27 @@
+#!/usr/bin/env bash
+#MISE description="Bump the version (major, minor or patch) and print the release steps"
+#USAGE arg "<kind>" help="major, minor or patch"
+set -euo pipefail
+cd "${MISE_PROJECT_ROOT:?}"
+
+kind=${usage_kind:?}
+case "$kind" in
+  major | minor | patch) ;;
+  *) echo "kind must be major, minor or patch, not $kind" >&2; exit 1 ;;
+esac
+# The bump commit must hold the version change only.
+if [ -n "$(git status --porcelain)" ]; then
+  echo "the working tree has changes; commit or stash them first" >&2
+  exit 1
+fi
+
+(cd backend && uv version --bump "$kind")
+version=$(cd backend && uv version --short)
+cat <<EOF
+
+Bumped to $version. Next:
+  git commit -am "chore(release): v$version"
+  git push origin dev
+  gh pr create --base main --head dev --label release --title "chore(release): v$version" --body ""
+Merge the release PR with a merge commit. The merge publishes v$version.
+EOF

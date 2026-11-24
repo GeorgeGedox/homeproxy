@@ -71,7 +71,7 @@ export async function startStack(prefix: string): Promise<Stack> {
   await docker("run", "--detach", "--name", upstream, "--network", network, WHOAMI);
   // The internet is off for the run: these jobs fail at once on a closed port.
   const offline = [
-    ...["HOMEPROXY_CF_RANGES_URL", "HOMEPROXY_RELEASES_URL", "HOMEPROXY_GEOIP_URL"].flatMap((name) => ["--env", `${name}=http://127.0.0.1:9`]),
+    ...["HOMEPROXY_CF_RANGES_URL", "HOMEPROXY_RELEASES_URL", "HOMEPROXY_GEOIP_URL", "HOMEPROXY_UPDATE_URL"].flatMap((name) => ["--env", `${name}=http://127.0.0.1:9`]),
     // lego would otherwise reach Let's Encrypt, and then a DNS provider whose retries outlast a test.
     ...["acme-v02.api.letsencrypt.org", "acme-staging-v02.api.letsencrypt.org"].flatMap((host) => ["--add-host", `${host}:127.0.0.1`]),
   ];

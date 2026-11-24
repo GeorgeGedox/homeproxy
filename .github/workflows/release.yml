@@ -1,12 +1,13 @@
 name: release
 
-# A `vX.Y.Z` tag that matches backend/pyproject.toml publishes the amd64 image to
-# GHCR as `X.Y.Z` and `latest`, then the GitHub release that the HomeProxy update
-# check reads. The image is pushed only after check, the smoke test, and the
-# integration and end-to-end tests pass.
+# A merge into main publishes the version in backend/pyproject.toml: the amd64
+# image to GHCR as X.Y.Z and latest, then the GitHub release vX.Y.Z, which the
+# HomeProxy update check reads. Only a release PR from dev can change main, and
+# its required checks ran the full test suite. One workflow creates the tag and
+# publishes, because a tag that GITHUB_TOKEN creates starts no other workflow.
 on:
   push:
-    tags: ["v*.*.*"]
+    branches: [main]
 
 permissions:
   contents: write
@@ -19,9 +20,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
-    env:
-      TAG: ${{ github.ref_name }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -29,35 +28,38 @@ jobs:
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.9.7
-      - name: Tag matches the package version
-        run: |
-          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
-          if [ "$TAG" != "v$version" ]; then
-            echo "tag $TAG does not match backend/pyproject.toml version $version" >&2
-            exit 1
-          fi
-      # Before check: its .pyc files keep the fake test keys but drop the gitleaks:allow comments.
-      - name: Scan for secrets
-        run: gitleaks dir --no-banner --redact
-      - name: Check
-        run: mise run check
-      # Each builds and smoke-tests the image first; the second build comes from the cache.
-      - name: Integration tests
-        run: mise run test-integration
-      - name: End-to-end tests
-        run: mise run test-e2e
-      - name: Push the image
+      - name: Read the version
+        id: version
         env:
           GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          if gh release view "v$version" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "v$version is already released; nothing to publish"
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Build and smoke-test the image
+        if: steps.version.outputs.publish == 'true'
+        run: mise run image
+      - name: Push the image
+        if: steps.version.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ steps.version.outputs.version }}
         run: |
           src="homeproxy:$(mise exec -- printenv COMPOSE_PROJECT_NAME)"
           repo="ghcr.io/${GITHUB_REPOSITORY,,}"
           echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
-          for tag in "${TAG#v}" latest; do
+          for tag in "$VERSION" latest; do
             docker tag "$src" "$repo:$tag"
             docker push "$repo:$tag"
           done
       - name: Create the GitHub release
+        if: steps.version.outputs.publish == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes
+          VERSION: ${{ steps.version.outputs.version }}
+        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --generate-notes

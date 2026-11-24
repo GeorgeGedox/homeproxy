@@ -136,7 +136,14 @@ def lab(test_name_prefix: str) -> Iterator[Lab]:
         docker("network", "create", lan)
         _create_wan_network(wan)
         # Only the LAN network at first, so the default route is on it.
-        docker("run", "-d", "--name", server, "--network", lan, image)
+        # The internet is off for the run: these jobs fail at once on a closed port.
+        offline = (
+            "--env=HOMEPROXY_CF_RANGES_URL=http://127.0.0.1:9",
+            "--env=HOMEPROXY_RELEASES_URL=http://127.0.0.1:9/",
+            "--env=HOMEPROXY_GEOIP_URL=http://127.0.0.1:9",
+            "--env=HOMEPROXY_UPDATE_URL=http://127.0.0.1:9",
+        )
+        docker("run", "-d", "--name", server, "--network", lan, *offline, image)
         for name, network in ((lan_client, lan), (wan_client, wan)):
             docker(
                 "run",

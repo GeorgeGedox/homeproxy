@@ -89,6 +89,7 @@ def start_server(name: str, *env: str) -> Iterator[Server]:
         "HOMEPROXY_CF_RANGES_URL=http://127.0.0.1:9",
         "HOMEPROXY_RELEASES_URL=http://127.0.0.1:9/",
         "HOMEPROXY_GEOIP_URL=http://127.0.0.1:9",
+        "HOMEPROXY_UPDATE_URL=http://127.0.0.1:9",
         *env,
     ]
     try:
