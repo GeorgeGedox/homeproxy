@@ -3,12 +3,15 @@
 from dataclasses import replace
 from datetime import UTC, date, datetime
 from pathlib import Path
+from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.haproxy.version_check import VersionStatus
 from homeproxy.jobs.update_check import UpdateCheck, UpdateStatus
 from homeproxy.store import Store
+from tests.unit.api.conftest import FakeLapi, enable_crowdsec
 
 
 def test_status_answers_without_haproxy_and_reports_the_last_apply(
@@ -74,6 +77,27 @@ def test_status_answers_without_haproxy_and_reports_the_last_apply(
         ["haproxy -c failed"],
     )
     assert last["warnings"] == ["example.com is routed only on /test"]
+
+
+@pytest.mark.parametrize(
+    ("setup", "state"),
+    [
+        pytest.param({"appsec": True}, "up", id="answers"),
+        pytest.param({"appsec": True, "bouncer_key": "wrong"}, "down", id="refuses-the-key"),
+        pytest.param({}, None, id="off"),
+    ],
+)
+def test_status_reports_whether_appsec_checks_requests_for_the_bouncer(
+    data_dir: Path,
+    lapi: tuple[FakeLapi, str],
+    api: TestClient,
+    setup: dict[str, Any],
+    state: str | None,
+) -> None:
+    """AppSec fails open, so a stopped AppSec shows only here and in its alert."""
+    enable_crowdsec(data_dir, lapi[1], **setup)
+
+    assert api.get("/api/v1/status").json()["appsec"] == state
 
 
 def test_status_has_no_last_apply_before_the_first(api: TestClient) -> None:

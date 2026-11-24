@@ -17,7 +17,7 @@ import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Final, Literal
 
 from homeproxy.util import http as http_request
 from homeproxy.util.redact import redact, register_secret
@@ -37,6 +37,10 @@ class LapiError(Exception):
     """A LAPI call failed or was refused. The message never holds the password or the token."""
 
 
+BLOCKLIST_ORIGINS: Final = frozenset({"CAPI", "lists"})
+"""Origins of blocklist decisions, which can number tens of thousands."""
+
+
 @dataclass(frozen=True)
 class Decision:
     """One active decision. `scope` is `Ip` or `Range`, `origin` is `crowdsec` for a local
@@ -49,6 +53,8 @@ class Decision:
     origin: str
     scenario: str
     expires_at: datetime
+    created_at: datetime
+    """When its alert reached the LAPI. For a blocklist, the pull that brought it."""
 
 
 class LapiClient:
@@ -67,8 +73,11 @@ class LapiClient:
         alerts = self._call("GET", f"/v1/alerts?{query}")
         now = datetime.now(UTC)
         try:
-            items = [item for alert in alerts or [] for item in alert["decisions"] or []]
-            found = [_decision(item, now) for item in items]
+            found = [
+                _decision(item, now, datetime.fromisoformat(alert["created_at"]))
+                for alert in alerts or []
+                for item in alert["decisions"] or []
+            ]
         except (KeyError, TypeError, ValueError) as error:
             log.warning("crowdsec decisions: unexpected answer: %r", error)
             raise LapiError("unexpected answer listing decisions") from None
@@ -120,14 +129,18 @@ class LapiClient:
         """Delete one decision. A blocklist can bring its value back at its next pull."""
         self._call("DELETE", f"/v1/decisions/{int(decision_id)}")
 
-    def _call(self, method: str, path: str, payload: object = None) -> Any:
-        """Log in, then return the JSON body of one successful call."""
+    def login(self) -> str:
+        """Log in as the machine and return the token. Raises `LapiError`."""
         login = {"machine_id": self._machine_id, "password": self._password}
         answer = self._send("POST", "/v1/watchers/login", login, None)
         token = answer.get("token") if isinstance(answer, dict) else None
         if not isinstance(token, str) or not token:
             raise LapiError("the LAPI login answered without a token")
-        return self._send(method, path, payload, token)
+        return token
+
+    def _call(self, method: str, path: str, payload: object = None) -> Any:
+        """Log in, then return the JSON body of one successful call."""
+        return self._send(method, path, payload, self.login())
 
     def _send(self, method: str, path: str, payload: object, token: str | None) -> Any:
         headers = {"Content-Type": "application/json"}
@@ -160,7 +173,7 @@ class LapiClient:
             raise LapiError("the CrowdSec API sent an answer HomeProxy could not read") from None
 
 
-def _decision(item: dict[str, Any], now: datetime) -> Decision | None:
+def _decision(item: dict[str, Any], now: datetime, created_at: datetime) -> Decision | None:
     """Return an active decision, or None for an expired or simulated one."""
     left = _go_duration(str(item["duration"]))
     if left <= timedelta(0) or item.get("simulated"):
@@ -173,6 +186,7 @@ def _decision(item: dict[str, Any], now: datetime) -> Decision | None:
         origin=str(item["origin"]),
         scenario=str(item.get("scenario") or ""),
         expires_at=now + left,
+        created_at=created_at,
     )
 
 

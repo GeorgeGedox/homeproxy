@@ -1,7 +1,10 @@
-"""State alerts: a route or the bouncer down after the delay and recovered, one expiring message per
-certificate per renewal, none repeated after a restart, and no alert for a disabled route."""
+"""State alerts: a route, the bouncer or AppSec down after the delay and recovered, one expiring
+message per certificate per renewal, none repeated after a restart, and no alert for a disabled
+route."""
 
+from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
+from typing import Literal
 
 import pytest
 
@@ -34,6 +37,12 @@ class Stats:
         return parse_stat("# pxname,svname,type,status,\n" + rows)
 
 
+def appsec_of(stats: Stats) -> Callable[[], Literal["up", "down"] | None]:
+    """AppSec's state, from a backend named `appsec` in `stats`, which HAProxy never has."""
+    states: dict[str, Literal["up", "down"]] = {"UP": "up", "DOWN": "down"}
+    return lambda: states.get(stats.backends.get("appsec", ""))
+
+
 def messages(receiver: Receiver) -> list[tuple[str, str, str]]:
     Receiver.wait()
     return [(b["event"], b["title"], b["severity"]) for b in receiver.bodies("/hook")]
@@ -51,13 +60,21 @@ def no_certificates() -> list[CertificateInfo]:
         ("route-files", "route_down", "Route files is down", "Route files recovered"),
         ("route-minecraft", "route_down", "Route minecraft is down", "Route minecraft recovered"),
         ("crowdsec-spoa", "bouncer_down", "CrowdSec bouncer is down", "CrowdSec bouncer recovered"),
+        ("appsec", "appsec_down", "CrowdSec AppSec is down", "CrowdSec AppSec recovered"),
     ],
 )
 def test_down_for_the_delay_sends_one_message_and_recovery_one_more(
     store: Store, receiver: Receiver, backend: str, event: str, down: str, recovered: str
 ) -> None:
     clock, stats = Clock(), Stats()
-    job = StateAlerts(store, stats, no_certificates, down_after=timedelta(minutes=2), clock=clock)
+    job = StateAlerts(
+        store,
+        stats,
+        no_certificates,
+        appsec=appsec_of(stats),
+        down_after=timedelta(minutes=2),
+        clock=clock,
+    )
 
     # A short outage is quiet, and the delay starts again at the next one.
     for clock.seconds, stats.backends[backend] in [(0, "DOWN"), (60, "UP"), (100, "DOWN")]:

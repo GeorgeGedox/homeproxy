@@ -8,7 +8,7 @@ are refused while `config.yaml` is staged. Every change is written to the audit 
 
 import logging
 from collections.abc import Callable
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Response
 from pydantic import BaseModel, Field
@@ -17,6 +17,7 @@ from homeproxy.api.apply import ServicesDep
 from homeproxy.api.errors import ApiError, changes_pending
 from homeproxy.auth.routes import Runtime
 from homeproxy.crowdsec import (
+    BLOCKLIST_ORIGINS,
     ChangesPending,
     Decision,
     DecisionType,
@@ -25,6 +26,7 @@ from homeproxy.crowdsec import (
     add_to_allowlist,
     remove_from_allowlist,
 )
+from homeproxy.crowdsec.health import CheckResult, connection_check
 from homeproxy.haproxy.apply_rules import public_ranges
 from homeproxy.haproxy.client import HAProxyClient, HAProxyError
 from homeproxy.models import StrictModel
@@ -37,9 +39,6 @@ router = APIRouter(prefix="/api/v1", tags=["security"])
 
 MAX_DECISION_SECONDS = 10 * 365 * 24 * 3600
 """Far longer than any ban needs, and well inside the LAPI's duration range."""
-
-BLOCKLIST_ORIGINS = frozenset({"CAPI", "lists"})
-"""Origins of blocklist decisions, which can number tens of thousands."""
 
 _LAPI_RESPONSES: dict[int | str, dict[str, str]] = {
     409: {"description": "CrowdSec is off, or the machine credentials are missing"},
@@ -66,12 +65,14 @@ class AllowlistEntry(StrictModel):
 
 
 class DecisionCounts(BaseModel):
-    """The active decisions of the local engine and of manual bans, and whether a blocklist is
-    loaded too."""
+    """The active decisions of the local engine and of manual bans, and of the blocklists."""
 
     bans: int
     captchas: int
-    blocklist: bool
+    blocklist: int = Field(description="Active blocklist decisions. 0 when none is loaded")
+    blocklist_updated_at: datetime | None = Field(
+        description="When the newest blocklist pull that brought decisions reached the LAPI"
+    )
 
 
 class AllowlistAdded(BaseModel):
@@ -118,10 +119,29 @@ def count_decisions(runtime: Runtime) -> DecisionCounts:
     except LapiError as error:
         raise _lapi_failed(error) from None
     local = [d for d in decisions if d.origin not in BLOCKLIST_ORIGINS]
+    listed = [d for d in decisions if d.origin in BLOCKLIST_ORIGINS]
     bans = sum(d.type == "ban" for d in local)
     return DecisionCounts(
-        bans=bans, captchas=len(local) - bans, blocklist=len(local) < len(decisions)
+        bans=bans,
+        captchas=len(local) - bans,
+        blocklist=len(listed),
+        blocklist_updated_at=max((d.created_at for d in listed), default=None),
     )
+
+
+@router.post(
+    "/security/crowdsec/check",
+    response_model=list[CheckResult],
+    responses={409: {"description": "No CrowdSec API URL is saved"}},
+)
+def check_crowdsec(runtime: Runtime) -> list[CheckResult]:
+    """Test the saved CrowdSec settings and keys: the machine login, the bouncer key, AppSec and
+    the blocklists, each on its own line."""
+    crowdsec = runtime.store.load_config().crowdsec
+    if crowdsec.lapi_url is None:
+        message = "Set the CrowdSec API URL in Settings, then apply."
+        raise ApiError(409, "crowdsec_not_configured", message)
+    return connection_check(crowdsec, runtime.store.load_secrets().crowdsec)
 
 
 @router.post(

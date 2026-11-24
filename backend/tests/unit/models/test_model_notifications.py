@@ -30,7 +30,7 @@ def secrets(notifications: dict[str, Any]) -> dict[str, Any]:
 def test_a_target_without_events_gets_every_event() -> None:
     loaded = Config.model_validate(config([{"name": "discord-main", "type": "discord"}]))
     assert "certificate_failed" in loaded.notifications.targets[0].events
-    assert len(loaded.notifications.targets[0].events) == 8
+    assert len(loaded.notifications.targets[0].events) == 9
 
 
 @pytest.mark.parametrize(

@@ -6,10 +6,6 @@ errors and never return the machine credentials. No HAProxy runs, so an allowlis
 one shows the HAProxy failure answer.
 """
 
-import json
-import threading
-from collections.abc import Iterator
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
 
@@ -17,87 +13,17 @@ import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.store import Store, load_tree
-from tests.unit.api.conftest import stage_config, stage_route
-
-MACHINE_ID = "homeproxy-ui"
-MACHINE_PASSWORD = "api-test-machine-password"  # noqa: S105 - accepted by the fake LAPI
-TOKEN = "api-test-lapi-token"  # noqa: S105
-COMMUNITY_BAN = {
-    "id": 7,
-    "type": "ban",
-    "scope": "Ip",
-    "value": "203.0.113.7",
-    "origin": "CAPI",
-    "scenario": "crowdsecurity/http-probing",
-    "duration": "3h59m50s",
-}
-
-
-class FakeLapi:
-    """Answers the four LAPI calls the client makes, for one machine."""
-
-    def __init__(self) -> None:
-        self.decisions: list[dict[str, Any]] = [dict(COMMUNITY_BAN)]
-        self.added: list[dict[str, Any]] = []
-        self.listing_fails = False
-
-    def answer(self, method: str, path: str, body: Any, auth: str) -> tuple[int, Any]:
-        if path == "/v1/watchers/login":
-            ok = body == {"machine_id": MACHINE_ID, "password": MACHINE_PASSWORD}
-            return (200, {"token": TOKEN}) if ok else (401, {"message": "incorrect Username"})
-        if auth != f"Bearer {TOKEN}":
-            return 401, {"message": "no token"}
-        if method == "GET":
-            if self.listing_fails:
-                return 500, {"message": "listing timed out"}
-            return 200, [{"decisions": self.decisions}]
-        if method == "POST":
-            self.added += body
-            return 201, ["1"]
-        decision_id = int(path.rsplit("/", 1)[1])
-        if decision_id not in [d["id"] for d in self.decisions]:
-            return 500, {"message": "decision with id 99 not found"}
-        self.decisions = [d for d in self.decisions if d["id"] != decision_id]
-        return 200, {"nbDeleted": "1"}
-
-
-@pytest.fixture
-def lapi() -> Iterator[tuple[FakeLapi, str]]:
-    """A fake LAPI on a random loopback port, and its URL."""
-    fake = FakeLapi()
-
-    class Handler(BaseHTTPRequestHandler):
-        def _handle(self) -> None:
-            length = int(self.headers.get("Content-Length") or 0)
-            body = json.loads(self.rfile.read(length)) if length else None
-            path = self.path.split("?", 1)[0]
-            status, answer = fake.answer(
-                self.command, path, body, self.headers.get("Authorization", "")
-            )
-            data = json.dumps(answer).encode()
-            self.send_response(status)
-            self.send_header("Content-Length", str(len(data)))
-            self.end_headers()
-            self.wfile.write(data)
-
-        do_GET = do_POST = do_DELETE = _handle
-
-        def log_message(self, format: str, *args: Any) -> None:
-            pass
-
-    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
-    threading.Thread(target=server.serve_forever, daemon=True).start()
-    yield fake, f"http://127.0.0.1:{server.server_port}"
-    server.shutdown()
-    server.server_close()
-
-
-def enable_crowdsec(data_dir: Path, lapi_url: str, password: str = MACHINE_PASSWORD) -> None:
-    with (data_dir / "config" / "config.yaml").open("a") as config:
-        config.write(f"crowdsec:\n  enabled: true\n  lapi_url: {lapi_url}\n")
-        config.write("  syslog: 127.0.0.1:5140\n")
-    with (data_dir / "secrets" / "secrets.yaml").open("a") as secrets:
-        secrets.write(f"crowdsec:\n  machine_id: {MACHINE_ID}\n  machine_password: {password}\n")
+from tests.unit.api.conftest import (
+    BOUNCER_KEY,
+    COMMUNITY_BAN,
+    MACHINE_ID,
+    MACHINE_PASSWORD,
+    PULLED_AT,
+    FakeLapi,
+    enable_crowdsec,
+    stage_config,
+    stage_route,
+)
 
 
 def actions(data_dir: Path) -> list[tuple[str, dict[str, Any]]]:
@@ -160,17 +86,56 @@ def test_an_unban_goes_through_when_the_decision_cannot_be_looked_up(
     assert actions(data_dir) == [("security.decision.delete", {"id": 7})]
 
 
-def test_decision_counts_name_only_local_ones_and_whether_a_blocklist_is_loaded(
+def test_decision_counts_split_local_ones_from_the_blocklist(
     data_dir: Path, lapi: tuple[FakeLapi, str], api: TestClient
 ) -> None:
+    """The blocklist count is 0, not missing, when no blocklist decision is active. Its update is
+    the time of the newest pull that brought decisions."""
     fake, url = lapi
     enable_crowdsec(data_dir, url)
     local = {**COMMUNITY_BAN, "origin": "crowdsec"}
     fake.decisions += [{**local, "id": 8}, {**local, "id": 9, "type": "captcha"}]
 
-    counts = api.get("/api/v1/security/decisions/counts")
+    loaded = api.get("/api/v1/security/decisions/counts").json()
+    fake.decisions = fake.decisions[1:]
+    none = api.get("/api/v1/security/decisions/counts").json()
 
-    assert counts.json() == {"bans": 1, "captchas": 1, "blocklist": True}
+    assert loaded == {"bans": 1, "captchas": 1, "blocklist": 1, "blocklist_updated_at": PULLED_AT}
+    assert none == {"bans": 1, "captchas": 1, "blocklist": 0, "blocklist_updated_at": None}
+
+
+@pytest.mark.parametrize(
+    ("setup", "results"),
+    [
+        pytest.param({"appsec": True}, [True, True, True, True], id="all-good"),
+        pytest.param({}, [True, True, None, True], id="appsec-off"),
+        pytest.param({"password": "wrong", "appsec": True}, [False, True, True, False], id="login"),
+        pytest.param(
+            {"bouncer_key": "wrong", "appsec": True}, [True, False, False, True], id="key"
+        ),
+        pytest.param({"lapi_url": "http://127.0.0.1:9"}, [False, False, None, False], id="no-lapi"),
+    ],
+)
+def test_the_connection_test_reports_each_part_on_its_own_line(
+    data_dir: Path,
+    lapi: tuple[FakeLapi, str],
+    api: TestClient,
+    setup: dict[str, Any],
+    results: list[bool | None],
+) -> None:
+    """`docs/crowdsec.md`: the machine login, the bouncer key, AppSec and the blocklist. A part
+    that fails does not stop the others, and no line holds a key or a password."""
+    enable_crowdsec(data_dir, **({"lapi_url": lapi[1]} | setup))
+
+    response = api.post("/api/v1/security/crowdsec/check")
+
+    lines = response.json()
+    assert [(line["part"], line["ok"]) for line in lines] == list(
+        zip(["machine", "bouncer", "appsec", "blocklist"], results, strict=True)
+    )
+    assert all(line["message"] for line in lines)
+    for secret in (MACHINE_PASSWORD, BOUNCER_KEY, "wrong"):
+        assert secret not in response.text
 
 
 def test_decisions_need_crowdsec_on(api: TestClient) -> None:
