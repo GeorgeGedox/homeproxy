@@ -77,6 +77,7 @@ export interface RouteDraft {
   enabled: boolean;
 }
 
+/** A new HTTP route with the defaults the form starts from. */
 export function blankDraft(): RouteDraft {
   return {
     type: "http", hosts: [], listen_port: undefined, exposure: "lan", upstreams: [],
@@ -123,6 +124,7 @@ function geoipToDraft(route: Route): Partial<RouteDraft> {
   return { block_countries: [...countries], geoip_enabled: (route.geoip?.enabled ?? true) && countries.length > 0 };
 }
 
+/** The form state of a saved route. */
 export function routeToDraft(route: Route): RouteDraft {
   return {
     ...blankDraft(),

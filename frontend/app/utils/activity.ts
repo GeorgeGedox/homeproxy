@@ -29,4 +29,5 @@ const WORDS: Record<string, (details: Details) => string> = {
 
 /** The audit entries that are not applies, as plain words; an unknown action shows its name. */
 export const activityText = (entry: AuditEntry): string => WORDS[entry.action]?.(entry.details ?? {}) ?? entry.action;
+/** Whether an audit entry is activity, which is anything but an apply. */
 export const isActivity = (entry: AuditEntry): boolean => entry.action !== "apply";

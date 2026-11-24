@@ -5,7 +5,9 @@ export type LedTone = "up" | "down" | "unknown" | "staged" | "off";
 const TONES: Record<string, LedTone> = { UP: "up", DOWN: "down", "no check": "off", MAINT: "off" };
 const WORDS: Record<string, string> = { UP: "Up", DOWN: "Down", "no check": "Not checked", MAINT: "Disabled" };
 
+/** The status light of a HAProxy server state. */
 export const healthTone = (state: string): LedTone => TONES[state] ?? "unknown";
+/** A HAProxy server state in plain words. */
 export const healthText = (state: string): string => WORDS[state] ?? state;
 
 /** HAProxy's version without its build suffix, such as "3.4.7", or undefined while it does not answer. */
