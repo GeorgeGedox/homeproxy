@@ -1,6 +1,6 @@
 [project]
 name = "homeproxy"
-version = "0.1.0"
+version = "0.2.0"
 description = "Self-hosted reverse proxy manager built on HAProxy"
 requires-python = ">=3.13,<3.14"
 license = "MIT"
