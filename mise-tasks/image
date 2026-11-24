@@ -1,12 +1,11 @@
 #!/usr/bin/env bash
-#MISE description="Build the image for this machine's architecture and smoke-test it"
-# Tags homeproxy:<COMPOSE_PROJECT_NAME>, which the integration tests use. CI and the release build
-# each architecture on its own native runner, so no emulation is needed.
+#MISE description="Build the image for this machine's architecture"
+# Tags homeproxy:<COMPOSE_PROJECT_NAME>, which the tests use. `mise run test-integration` builds it
+# and smoke-tests it. CI and the release build each architecture on its own native runner.
 set -euo pipefail
 cd "${MISE_PROJECT_ROOT:?}"
 
 tag="homeproxy:${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is set by mise.toml}"
 platform="linux/$(docker version --format '{{.Server.Arch}}')"
 docker buildx build --platform "$platform" --load -t "$tag" -f image/Dockerfile .
-image/test/smoke.sh "$tag" "$platform"
-echo "image: ok ($platform)"
+echo "image: built $tag ($platform)"

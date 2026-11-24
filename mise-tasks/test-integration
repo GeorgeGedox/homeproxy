@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-#MISE description="Build the image, start it in compose on random ports and run the integration tests"
+#MISE description="Build the image, smoke-test it, then start it in compose on random ports and run the integration tests"
 #MISE depends=["image"]
 # Extra arguments go to pytest, for example `mise run test-integration -- -k healthz`. A test path,
 # relative to backend/, runs only that path: `-- tests/integration/api/test_api_dns.py`.
@@ -27,4 +27,8 @@ for arg in "$@"; do
     selection=()
   fi
 done
+# The smoke test boots the image on its own. A run of chosen test paths skips it.
+if [ ${#selection[@]} -gt 0 ]; then
+  "${MISE_PROJECT_ROOT}/image/test/smoke.sh" "homeproxy:${COMPOSE_PROJECT_NAME}" "linux/$(docker version --format '{{.Server.Arch}}')"
+fi
 uv run --frozen pytest -m integration -n auto --dist loadscope --durations=15 "${selection[@]}" "$@"

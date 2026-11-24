@@ -77,9 +77,9 @@ Development tools are pinned in `mise.toml`. Run `mise install` once.
 | Command | Purpose |
 | --- | --- |
 | `mise run check` | Lint, types, unit and golden tests. Run before every push |
-| `mise run test-integration` | Full container tests in compose |
+| `mise run test-integration` | Build the image, smoke-test it, then run the full container tests in compose |
 | `mise run test-e2e` | Build the image, then Playwright: real flows through the image's dashboard (`tests/real`) and mocked-API specs for error states (`tests/e2e`) |
-| `mise run image` | Build the image for this machine's architecture and smoke-test it |
+| `mise run image` | Build the image for this machine's architecture |
 | `mise run dev` | Start the dev stack with its data volume as it is (empty on first start). `-- seed` loads the example data, `-- reset` deletes the data |
 | `mise run api-client` | Regenerate the TypeScript client and JSON schema |
 | `mise run golden-update` | Update golden files. Review the diff |
@@ -142,7 +142,7 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 - `dev` must always be releasable: a `fix` on `dev` ships by itself the next day. Work that is not ready to ship stays on a branch.
 - For a small issue, put `Closes #N` in the commit message. The release PR description repeats it, and that closes the issue when the release merges.
 - Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions, work that needs a review, or a feature split over several issues. A feature stays on `feat/<issue>` until its backend and its UI are both done. Put `Closes #N` in the PR description. The squash commit keeps it, so the release PR description finds it.
-- Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
+- Before a push, run `mise run check`. Also run `test-integration` when runtime behavior or the image changes, and `test-e2e` when the UI changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`. The type decides the next release: `fix` makes a patch release that publishes by itself, `feat` makes a minor release that the maintainer merges, `!` or `BREAKING CHANGE` waits for a release by hand, and every other type releases nothing. Use `fix` only for a change a user would want shipped now.
 - Renovate owns the dependency pins and opens its PRs into `dev`. Do not bump a pin by hand unless the change needs a newer version. Renovate reads `renovate.json` from `main`, so an edit to it takes effect after the next release.
 - Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
