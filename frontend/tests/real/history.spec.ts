@@ -23,14 +23,17 @@ test("each apply shows what it changed in plain words, and a restore brings an o
   await older.getByRole("button", { name: "Show changes" }).click();
   await expect(older).toContainText("www.example.co");
 
-  // A staged edit is replaced by the restore, and the dialog says so first.
+  // A staged edit is replaced by the restore, and the dialog says so first. Cancel keeps it.
   await addSite(page, stack, "extra.example.co");
   await page.goto("/history");
   await older.getByRole("button", { name: "Restore" }).click();
   const dialog = page.getByRole("dialog");
   await expect(dialog).toContainText("It replaces what is staged now: 1 change");
-  await dialog.getByRole("button", { name: "Stage restore" }).click();
+  await dialog.getByRole("button", { name: "Cancel" }).click();
   const bar = page.getByTestId("pending-bar");
+  await expect(bar).toContainText("extra.example.co");
+  await older.getByRole("button", { name: "Restore" }).click();
+  await dialog.getByRole("button", { name: "Stage restore" }).click();
   await expect(bar).toContainText("Route www.example.co removed");
   await expect(bar).not.toContainText("extra.example.co");
   await apply(page);
