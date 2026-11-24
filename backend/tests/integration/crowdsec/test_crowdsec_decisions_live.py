@@ -13,12 +13,16 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from homeproxy.crowdsec import LapiClient
+from homeproxy.crowdsec.health import connection_check
+from homeproxy.models.config import Crowdsec
+from homeproxy.models.secrets import SecretsCrowdsec
 from homeproxy.store import load_tree
 from tests.conftest import wait_until
 from tests.integration.crowdsec_lab import (
     ALLOWED,
     APPLY,
     BANNED_VISITOR,
+    BOUNCER_KEY,
     CLEAN_VISITOR,
     CLOUDFLARE,
     DECISION_TIMEOUT,
@@ -147,3 +151,27 @@ def test_allowlist_takes_effect_at_once_and_survives_a_restart(lab: Lab) -> None
     # Emptied, the list matches nothing.
     allowlist(lab, "remove", OUTSIDE, ALLOWED)
     assert (status(lab, OUTSIDE), status(lab, ALLOWED)) == (403, 403)
+
+
+@pytest.mark.usefixtures("lapi")
+@pytest.mark.parametrize(
+    ("bouncer_key", "results"),
+    [
+        pytest.param(BOUNCER_KEY, [True, True, None, True], id="right-key"),
+        pytest.param("not-the-bouncer-key", [True, False, None, True], id="wrong-key"),
+    ],
+)
+def test_the_connection_test_checks_each_part_of_a_real_engine(
+    lab: Lab, bouncer_key: str, results: list[bool | None]
+) -> None:
+    """The lab's engine has no online API, so it holds no blocklist decision. The blocklist line
+    then says 0, not that blocklists are missing."""
+    crowdsec = Crowdsec.model_validate(
+        {"enabled": True, "lapi_url": f"http://{lab.lapi}:8080", "syslog": f"{lab.lapi}:514"}
+    )
+    keys = SecretsCrowdsec.model_validate({**MACHINE, "bouncer_key": bouncer_key})
+
+    lines = connection_check(crowdsec, keys)
+
+    assert [line.ok for line in lines] == results
+    assert lines[3].message == "0 blocklist decisions are active."

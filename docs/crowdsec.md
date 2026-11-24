@@ -64,7 +64,7 @@ volumes:
    `-f -` prints the login and the password instead of writing them to the engine's own credentials file.
 3. In HomeProxy, open Settings. Under CrowdSec, set the Bouncer key to the value of `CROWDSEC_BOUNCER_KEY`, the Machine ID to `homeproxy-ui` and the Machine password to the printed password. Keys are saved at once.
 4. Turn on the CrowdSec switch, set CrowdSec API URL to `http://127.0.0.1:18080` and CrowdSec syslog address to `127.0.0.1:15140`, and press Save settings. Then press Apply in the bar at the bottom.
-5. Check it. The CrowdSec section on Settings shows "Bouncer up" after a few seconds, and the Security page lists the decisions, if there are any yet. After some traffic, `docker compose exec crowdsec cscli metrics show acquisition parsers` shows lines read from `syslog` and parsed by `crowdsecurity/haproxy-logs`.
+5. Check it. The CrowdSec section on Settings shows "Bouncer up" after a few seconds. Select **Test connection** there. See [Connection test](#connection-test). The Security page lists the decisions, if there are any yet. After some traffic, `docker compose exec crowdsec cscli metrics show acquisition parsers` shows lines read from `syslog` and parsed by `crowdsecurity/haproxy-logs`.
 
 ## Access lines
 
@@ -136,7 +136,7 @@ The bouncer starts after the first apply with `crowdsec.enabled: true`, and stop
 
 The dashboard lists, adds and deletes CrowdSec decisions through the LAPI at `crowdsec.lapi_url`. It logs in as its own CrowdSec machine, from step 2 of the setup, not with the bouncer key. While CrowdSec is off, or the machine ID or password is missing, the Security page says so and its **Ban an address** button is disabled.
 
-- The list shows every active ban and captcha, with its address or range, its origin and its time left. Decisions from blocklists can number thousands, so they are hidden behind **Show N from blocklists**; a search finds them too. The origin is `crowdsec` for a local detection, `cscli` for a manual decision (yours or one from the dashboard) and `CAPI` or `lists` for a blocklist.
+- The list shows every active ban and captcha, with its address or range, its origin and its time left. Decisions from blocklists can number thousands, so the list hides them. The line below the list gives their number and the time of the newest blocklist update that brought decisions. **Show them** shows them, and a search finds them too. With 0 blocklist decisions, the line links to the CrowdSec console, where you enroll the engine to get blocklists. The dashboard cannot see whether the engine is registered with the Central API. To see that, run `docker compose exec crowdsec cscli capi status`. The origin is `crowdsec` for a local detection, `cscli` for a manual decision (yours or one from the dashboard) and `CAPI` or `lists` for a blocklist.
 - A manual ban or captcha is for an IP address or a range, for at least one second.
 - Deleting a decision takes effect within about 10 seconds, when the bouncer pulls its next update. An address from a blocklist can come back at the blocklist's next pull, so **Unban** on such an address asks first and offers **Allowlist and unban**, which lets it in for good.
 
@@ -208,3 +208,18 @@ HTTP lines use HAProxy's default `httplog` fields, and TCP lines use its default
 ## Bouncer state
 
 The CrowdSec card on the Security page and the CrowdSec section on the Settings page show whether the bouncer is up or down, as HAProxy's health check of the bouncer's socket sees it. HAProxy checks the socket every 2 seconds. While the bouncer is down, requests are not checked and pass through. The state is empty while CrowdSec is off.
+
+## AppSec state
+
+While AppSec is on, the CrowdSec section on the Settings page shows whether AppSec is up or down. The dashboard sends AppSec a request for a harmless page with the bouncer key, as the bouncer does. AppSec is up when it allows that request. AppSec fails open, so while it is down, requests pass without AppSec checks. The `appsec_down` notification tells you when AppSec is down for 2 minutes, and when it recovers.
+
+## Connection test
+
+**Test connection** in the CrowdSec section on the Settings page checks each part of CrowdSec and shows one line for each part. A part that fails does not stop the other checks. The test uses the applied settings and the saved keys.
+
+| Line | What the test does |
+| --- | --- |
+| Machine | Logs in to the LAPI with the machine ID and the machine password |
+| Bouncer | Asks the LAPI for decisions with the bouncer key |
+| AppSec | Asks AppSec about a harmless request with the bouncer key. The line says "AppSec is off" while AppSec is off |
+| Blocklist | Counts the active blocklist decisions with the machine login. 0 is a correct result: the engine can be registered, but have no blocklist decisions yet |

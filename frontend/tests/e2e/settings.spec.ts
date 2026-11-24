@@ -2,6 +2,12 @@ import type { Page } from "@playwright/test";
 import { expect, routeApi, test, type Reply } from "./fixtures";
 
 const SECRET = "s3cret-value";
+const CHECKS = [
+  { part: "machine", ok: true, message: "The machine logs in to the LAPI." },
+  { part: "bouncer", ok: false, message: "The LAPI refuses the bouncer key." },
+  { part: "appsec", ok: null, message: "AppSec is off." },
+  { part: "blocklist", ok: true, message: "0 blocklist decisions are active." },
+];
 
 interface Mock {
   settingsBody: Record<string, Record<string, unknown>> | undefined;
@@ -58,7 +64,8 @@ async function mockApi(page: Page): Promise<Mock> {
       const expires = new Date(Date.now() + 60_000).toISOString();
       return [200, { listen: "192.168.1.10:8080", session_ttl: "24h", pending_listen: { listen: "192.168.1.20:8080", url: "https://192.168.1.20:8080/", expires_at: expires } }];
     },
-    "GET /status": () => [200, { haproxy_version: "3.4.0", haproxy_error: null, version_check: null, last_apply: null, routes: [], bouncer: mock.bouncer }],
+    "GET /status": () => [200, { haproxy_version: "3.4.0", haproxy_error: null, version_check: null, last_apply: null, routes: [], bouncer: mock.bouncer, appsec: "down" }],
+    "POST /security/crowdsec/check": () => [200, CHECKS],
     "GET /changes": () => [200, { changes: [], conflict: false, conflicting_paths: [], config_diff: "", generated_diff: "", generated_error: null }],
   };
   await routeApi<Record<string, Record<string, string>> | null>(page, (method, path, body) => handlers[`${method} ${path}`]?.(body ?? {}));
@@ -88,6 +95,15 @@ test("each staged setting saves in one request, its warnings show, and the bounc
     prometheus: { enabled: true, listen: "192.168.1.10:9101" },
   });
   await expect(page.getByText(PUBLIC_RANGE_WARNING)).toBeVisible();
+});
+
+// The real stack has no CrowdSec engine, so the AppSec state and the connection test come from the mock.
+test("AppSec down shows next to the bouncer, and the connection test shows one line for each part", async ({ page }) => {
+  await mockApi(page);
+  await page.goto("/settings#crowdsec");
+  await expect(page.getByText("AppSec down", { exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Test connection" }).click();
+  await expect(page.getByRole("list", { name: "Connection test" }).getByRole("listitem")).toHaveText(CHECKS.map((check) => check.message));
 });
 
 test("keys show set or not set, never a value, and clearing a needed key asks first", async ({ page }) => {

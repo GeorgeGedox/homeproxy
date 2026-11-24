@@ -21,7 +21,7 @@ async function mockApi(page: Page, mock: Mock = {}): Promise<void> {
       update_check_configured: false, bouncer: "up", dns_listening: true, dns_uptime_seconds: 7200, last_apply: null,
       routes: [{ name: "app", status: "UP", requests: 0, responses_5xx: 0 }],
     },
-    "/security/decisions/counts": { bans: 2, captchas: 0, blocklist: true },
+    "/security/decisions/counts": { bans: 2, captchas: 0, blocklist: 1204, blocklist_updated_at: "2026-11-20T10:00:00Z" },
     "/routes": [{ name: "app", type: "http", hosts: ["app.example.com"], path_prefix: "/", exposure: "lan", upstreams: [], enabled: true }],
     "/domains": [{ zone: "example.com", wildcard_cert: true, dns_provider: "cloudflare", credentials: "cf" }],
     "/certificates": [{ name: "example.com", issuer: "R11", names: ["example.com"], not_after: "2027-01-01T00:00:00Z", days_left: 52, state: "ok" }],
@@ -39,7 +39,7 @@ test("the overview shows route health, certificate expiry, the DNS uptime and yo
   await expect(page.getByText("app.example.com")).toBeVisible();
   await expect(page.getByText("52d left")).toBeVisible();
   await expect(page.getByText("Up 2h", { exact: true })).toBeVisible();
-  await expect(page.getByText("2 bans · community list")).toBeVisible();
+  await expect(page.getByText("2 bans · 1,204 from blocklists")).toBeVisible();
 });
 
 test("a problem under Needs attention links to the page that fixes it", async ({ page }) => {

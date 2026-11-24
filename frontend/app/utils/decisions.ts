@@ -1,4 +1,5 @@
 import type { components } from "~~/api/schema";
+import { formatCount } from "./format";
 
 /** Blocklist origins: an unban lasts only until the next pull, so the allowlist is offered. */
 export const FROM_BLOCKLIST = ["CAPI", "lists"];
@@ -14,10 +15,10 @@ const ORIGINS: Record<string, string> = { crowdsec: "Detected here", cscli: "Add
 /** Where a decision came from, in words. */
 export const originName = (origin: string) => ORIGINS[origin] ?? origin;
 
-/** The CrowdSec line on Overview: your own bans and captchas, and whether a community list is loaded. */
+/** The CrowdSec line on Overview: your own bans and captchas, and the blocklist decisions. */
 export function banSummary({ bans, captchas, blocklist }: components["schemas"]["DecisionCounts"]): string {
   const parts = [bans === 1 ? "1 ban" : `${bans} bans`];
   if (captchas) parts.push(captchas === 1 ? "1 captcha" : `${captchas} captchas`);
-  if (blocklist) parts.push("community list");
+  if (blocklist) parts.push(`${formatCount(blocklist)} from blocklists`);
   return parts.join(" · ");
 }
