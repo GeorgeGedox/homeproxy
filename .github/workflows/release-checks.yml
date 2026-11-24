@@ -1,7 +1,8 @@
 name: release-checks
 
 # Only for PRs into main, so the job never exists as a skipped check, which
-# GitHub would count as passed. The main ruleset requires it.
+# GitHub would count as passed. The main ruleset requires it, beside the ci jobs
+# that run the full test suite on the same PR.
 on:
   pull_request:
     branches: [main]
@@ -14,15 +15,20 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # A release PR (dev into main) must carry a new version and pass the container
-  # and browser tests, because merging it publishes that version.
+  # A release PR (dev into main) must carry a new version, because merging it
+  # publishes that version, and the version must be big enough for its commits.
+  # It runs again on every push to the PR, so a feat that lands while a patch
+  # release waits to auto-merge fails it.
   release-checks:
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+          # The version guard reads the commits and tags since the last release.
+          fetch-depth: 0
+          fetch-tags: true
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.9.7
@@ -35,8 +41,7 @@ jobs:
             exit 1
           fi
           version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
-          # The checkout has no tags, so read them from the remote.
-          released=$(git ls-remote --tags --refs origin 'v*' | sed 's|.*refs/tags/v||')
+          released=$(git tag --list 'v*' | sed 's/^v//')
           if printf '%s\n' "$released" | grep -qxF "$version"; then
             echo "v$version is already released: run mise run bump on dev" >&2
             exit 1
@@ -47,8 +52,19 @@ jobs:
             exit 1
           fi
           echo "releasing v$version"
-      # Each builds and smoke-tests the image first; the second build comes from the cache.
-      - name: Integration tests
-        run: mise run test-integration
-      - name: End-to-end tests
-        run: mise run test-e2e
+      - name: The version bump matches the commits
+        run: |
+          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+          kind=$(mise run --quiet release-kind)
+          if [ -z "$latest" ] || [ "${version%.*}" != "${latest%.*}" ]; then
+            echo "v$version is a minor or major release; the commits call for: $kind"
+            exit 0
+          fi
+          case "$kind" in
+            minor | breaking)
+              echo "v$version is a patch release, but the commits since v$latest call for $kind" >&2
+              exit 1
+              ;;
+          esac
+          echo "v$version is a patch release; the commits call for: $kind"
