@@ -38,14 +38,7 @@ async function submit(): Promise<void> {
         :saving="editor.saving.value" :error="editor.saveError.value" :failure="editor.failure.value"
         :problems="editor.problems.value" @submit="submit"
       />
-      <UModal
-        v-model:open="guard.open.value" :title="label ? `Discard your edits to ${label}?` : 'Discard your edits?'"
-      >
-        <template #footer>
-          <UButton color="error" variant="soft" label="Discard edits" @click="guard.discard" />
-          <UButton color="neutral" variant="ghost" label="Keep editing" @click="guard.open.value = false" />
-        </template>
-      </UModal>
+      <UnsavedDialog v-model:open="guard.open.value" :title="label ? `Discard your edits to ${label}?` : 'Discard your edits?'" @discard="guard.discard" />
     </template>
   </UDashboardPanel>
 </template>
