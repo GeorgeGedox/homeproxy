@@ -299,7 +299,7 @@ def _listener_clash(first: str, second: str) -> str | None:
         return None
     if first_ip == second_ip:
         return ""
-    if wildcard := {first_ip, second_ip} & {"0.0.0.0", "::"}:  # noqa: S104
+    if wildcard := {first_ip, second_ip} & {"0.0.0.0", "::"}:  # noqa: S104 - compared, not bound
         return f", and {wildcard.pop()} listens on every address"
     return None
 
