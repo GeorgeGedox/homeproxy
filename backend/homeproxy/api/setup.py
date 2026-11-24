@@ -8,7 +8,7 @@ dashboard keeps the address it listens on now; Settings changes it later.
 
 Setup ends with the first apply, so nothing is pending afterwards and HAProxy leaves the
 placeholder page. A failed apply does not fail setup: it is audited like any other and shows as
-`last_apply` on `/status`.
+`last_apply` on `/status`. Setup then queues the first GeoIP download.
 
 The first domain is not part of setup. The wizard adds it through the domains API after the first
 login, because adding a domain checks its DNS token and starts certificate issuance.
@@ -16,6 +16,7 @@ login, because adding a domain checks its DNS token and starts certificate issua
 
 import logging
 import os
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Response
 from pydantic import Field, SecretStr
@@ -35,6 +36,7 @@ from homeproxy.auth.setup_detection import (
     taken_ports,
 )
 from homeproxy.auth.sources import lan_policy, parse_address
+from homeproxy.jobs.geoip import refresh_if_due
 from homeproxy.models import StrictModel
 from homeproxy.models.config import DnsServer, Network
 from homeproxy.models.fields import IpOrCidr, IPv4, ListenAddress
@@ -168,4 +170,6 @@ def setup(
         # The pipeline returns its failures as a result. This is what it lets through, such as an
         # unreadable lock file, which leaves no audit entry.
         logger.error("the first apply after setup could not run: %s", error)
+    # The hourly check would leave a new install without countries for up to an hour.
+    refresh_if_due(services.jobs, services.pipeline, datetime.now(UTC))
     return Response(status_code=204)

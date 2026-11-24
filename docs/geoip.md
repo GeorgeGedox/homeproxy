@@ -44,7 +44,7 @@ Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are
 | `dbip-lite` (default) | DB-IP IP to Country Lite, CC BY 4.0 | Nothing. The dashboard must show the credit "IP Geolocation by DB-IP" with a link to https://db-ip.com |
 | `maxmind` | MaxMind GeoLite2 Country | A free license key in `secrets.yaml` under `geoip.maxmind_license_key`, or set on the Settings page, which never shows it |
 
-The dashboard downloads the data within an hour of finishing setup, and again when the data is 30 days old. A restart does not delay the next download. The download is a background job (`geoip.refresh`). A failed download keeps the data in use and is tried again an hour later. The scheduled download sends one `geoip_failed` message when it starts failing, and no more until it works again. A download you start with **Refresh data** sends one on each failure.
+The dashboard downloads the data right after setup, and again when the data is 30 days old. A restart does not delay the next download. The download is a background job (`geoip.refresh`). A failed download keeps the data in use and is tried again an hour later. The scheduled download sends one `geoip_failed` message when it starts failing, and no more until it works again. A download you start with **Refresh data** sends one on each failure.
 
 New data goes live at once, through a reload, when no changes are pending. When changes are pending, the new data waits for your next apply, because a background job never applies your pending changes. If the apply of new data fails, the old data comes back, so it can never block your own applies. Note that this apply also loads any hand edits in `/data/config` that you did not apply yet.
 

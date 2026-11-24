@@ -99,6 +99,23 @@ def test_a_failed_first_apply_does_not_fail_setup(
     assert last_apply["success"] is False, last_apply
 
 
+def test_setup_queues_the_first_geoip_download(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    detect(monkeypatch, tmp_path)
+    root = tmp_path / "data"
+    (root / "releases" / "placeholder").mkdir(parents=True)
+    (root / "generated").symlink_to("releases/placeholder")
+    ensure_session_key(Store(root))
+    test, token = setup_mode(root, "192.168.1.50")
+    response = test.post("/api/v1/setup", json={"token": token, "password": PASSWORD})
+    assert response.status_code == 204
+    assert test.post("/api/v1/auth/login", json={"password": PASSWORD}).status_code == 204
+
+    jobs = test.get("/api/v1/jobs").json()
+    assert [(job["kind"], job["state"]) for job in jobs] == [("geoip.refresh", "queued")]
+
+
 def test_a_value_that_cannot_be_detected_must_be_sent(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

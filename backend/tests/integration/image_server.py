@@ -83,7 +83,14 @@ def start_server(name: str, *env: str) -> Iterator[Server]:
         pytest.exit("COMPOSE_PROJECT_NAME is not set. Run `mise run test-integration`.", 2)
     image = f"{os.environ.get('IMAGE_NAME', 'homeproxy')}:{project}"
     subprocess.run(["docker", "rm", "-f", "-v", name], capture_output=True, check=False)
-    settings = [f"HOMEPROXY_BOOTSTRAP_LISTEN=0.0.0.0:{PORT}", *env]
+    # Data sources point nowhere, so no job, such as setup's GeoIP download, calls the internet.
+    settings = [
+        f"HOMEPROXY_BOOTSTRAP_LISTEN=0.0.0.0:{PORT}",
+        "HOMEPROXY_CF_RANGES_URL=http://127.0.0.1:9",
+        "HOMEPROXY_RELEASES_URL=http://127.0.0.1:9/",
+        "HOMEPROXY_GEOIP_URL=http://127.0.0.1:9",
+        *env,
+    ]
     try:
         docker(
             "run",
