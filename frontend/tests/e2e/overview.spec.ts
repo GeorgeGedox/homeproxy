@@ -53,8 +53,8 @@ test("a problem under Needs attention links to the page that fixes it", async ({
   await expect(page).toHaveURL(/\/domains$/);
 });
 
-test("the overview shows a newer HAProxy patch and the LTS end date", async ({ page }) => {
-  await mockApi(page, { versionCheck: { running: "3.4.7", branch: "3.4", latest: "3.4.9", eol: "2031-04-01", update_available: true, checked_at: "2026-11-10T00:00:00Z" } });
+test("the overview shows the latest HAProxy LTS patch and the LTS end date", async ({ page }) => {
+  await mockApi(page, { versionCheck: { running: "3.4.7", branch: "3.4", latest: "3.4.9", eol: "2031-04-01", checked_at: "2026-11-10T00:00:00Z" } });
   await page.goto("/");
-  await expect(page.getByText("3.4.9 available · LTS until Apr 2031")).toBeVisible();
+  await expect(page.getByText("Latest 3.4.9 · LTS until Apr 2031")).toBeVisible();
 });

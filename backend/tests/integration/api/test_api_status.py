@@ -36,7 +36,6 @@ def test_status_answers_without_haproxy_and_reports_the_last_apply(
         branch="3.4",
         latest="3.4.9",
         eol=date(2031, 4, 1),
-        update_available=True,
         checked_at=datetime(2026, 11, 10, tzinfo=UTC),
     )
     api.app.state.version_check.status = found  # type: ignore[attr-defined]

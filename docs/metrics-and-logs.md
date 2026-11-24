@@ -55,4 +55,4 @@ The access log holds client IP addresses and full URLs with their query strings,
 
 ## HAProxy updates
 
-HAProxy is bundled in the HomeProxy image. When a newer patch of the newest LTS branch exists, the Overview shows "HAProxy update available". Update the HomeProxy image to get it.
+HAProxy is bundled in the HomeProxy image. A newer HAProxy comes only with a new HomeProxy release. The HomeProxy update check tells you when a new release is available, as in [Overview and status](overview-and-status.md#update-check). To get it, update the image as in [Install](install.md#update).

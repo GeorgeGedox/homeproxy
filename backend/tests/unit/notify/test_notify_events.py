@@ -1,5 +1,5 @@
-"""The jobs send their events: DDNS once per change of state, a new HAProxy or HomeProxy version
-once a target got it, a failed GeoIP refresh, and each failed renewal run."""
+"""The jobs send their events: DDNS once per change of state, a new HomeProxy version once a
+target got it, a failed GeoIP refresh, and each failed renewal run."""
 
 import json
 from pathlib import Path
@@ -16,7 +16,6 @@ from homeproxy.jobs.certs import renew_due
 from homeproxy.jobs.ddns import Ddns
 from homeproxy.jobs.geoip import refresh
 from homeproxy.jobs.update_check import UpdateCheck
-from homeproxy.jobs.version_check import VersionCheck
 from homeproxy.notify import sender
 from homeproxy.store import Store, load_tree, write_tree
 from tests.conftest import Receiver
@@ -63,50 +62,21 @@ def test_ddns_sends_one_message_each_time_it_starts_failing(
     assert events(receiver) == ["ddns_failed"] * 3
 
 
-def write_releases(path: Path, latest: str) -> str:
-    release = {"name": "3.4", "isLts": True, "eolFrom": None, "latest": {"name": latest}}
-    path.write_text(json.dumps({"result": {"releases": [release]}}))
-    return path.as_uri()
-
-
 def test_a_new_version_is_sent_until_a_target_gets_it_and_then_never_again(
     store: Store, receiver: Receiver, tmp_path: Path
 ) -> None:
-    """Each check is a new `VersionCheck`, as after a restart."""
-    releases = tmp_path / "releases.json"
-    VersionCheck(lambda: "3.4.8", write_releases(releases, "3.4.8"), store=store).run()
-    assert events(receiver) == []
-
-    url = write_releases(releases, "3.4.9")
+    """Each check is a new `UpdateCheck`, as after a restart."""
+    release = tmp_path / "release.json"
+    release.write_text(json.dumps({"tag_name": "v9.0.0"}))
+    url = release.as_uri()
     receiver.status = 404
-    VersionCheck(lambda: "3.4.8", url, store=store).run()
+    UpdateCheck(url, store=store).run()
     assert len(events(receiver)) == sender.RETRIES + 1
     receiver.status = 204
     for _ in range(2):
-        VersionCheck(lambda: "3.4.8", url, store=store).run()
+        UpdateCheck(url, store=store).run()
         assert len(events(receiver)) == sender.RETRIES + 2
-    assert receiver.bodies("/hook")[-1]["title"] == "HAProxy 3.4.9 is available"
-
-
-def test_a_new_homeproxy_version_is_sent_once_beside_haproxy_versions(
-    store: Store, receiver: Receiver, tmp_path: Path
-) -> None:
-    """The two checks remember their versions apart, so neither repeats the other's message."""
-    release = tmp_path / "release.json"
-    release.write_text(json.dumps({"tag_name": "v9.0.0"}))
-    haproxy = write_releases(tmp_path / "releases.json", "3.4.9")
-
-    for run in (
-        UpdateCheck(release.as_uri(), store=store).run,
-        VersionCheck(lambda: "3.4.8", haproxy, store=store).run,
-        UpdateCheck(release.as_uri(), store=store).run,
-    ):
-        run()
-        Receiver.wait()
-    assert [body["title"] for body in receiver.bodies("/hook")] == [
-        "HomeProxy 9.0.0 is available",
-        "HAProxy 3.4.9 is available",
-    ]
+    assert receiver.bodies("/hook")[-1]["title"] == "HomeProxy 9.0.0 is available"
 
 
 def test_each_failed_renewal_run_sends_one_message(store: Store, receiver: Receiver) -> None:
