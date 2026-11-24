@@ -4,7 +4,7 @@ HomeProxy blocks countries in HAProxy, and shows the country of every request in
 
 ## In the dashboard
 
-- **Security, Countries card:** pick the countries blocked on every public site. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
+- **Security, Countries card:** pick the countries blocked on every public site, except a site whose list replaces this one. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
 - **A site's settings, Protection:** **Block countries** blocks countries on that site only. The list is labeled "Countries (adds to the global list)". Turn on **Replace the global list** to change the label to "Countries (replaces the global list)". Then only the countries of the site list are blocked on that site. An empty list opens the site to every country.
 
 Each change is staged and takes effect at the next apply.
@@ -15,7 +15,7 @@ Each change is staged and takes effect at the next apply.
 # config.yaml
 geoip:
   provider: dbip-lite        # or maxmind
-  block_countries: [CN, RU]  # blocked on every public route
+  block_countries: [CN, RU]  # blocked on every public route, unless its list replaces this one
 ```
 
 ```yaml
@@ -59,7 +59,7 @@ The data lives in `/data/geoip/`: `country.map`, `country-lookup.bin` for the lo
 
 ## Accuracy and memory
 
-HAProxy keeps its map in memory, about 300 bytes for each entry. It loads only the ranges of the countries blocked globally or on a public route whose list is on. With no country blocked, its map is empty. The full DB-IP data, written as plain address blocks, would need about 1.4 million entries and more than 400 MB. HomeProxy makes the map smaller in two ways:
+HAProxy keeps its map in memory, about 300 bytes for each entry. It loads only the ranges of the countries that a public route blocks. With no country blocked, its map is empty. The full DB-IP data, written as plain address blocks, would need about 1.4 million entries and more than 400 MB. HomeProxy makes the map smaller in two ways:
 
 - A wide block carries the most common country of its range, and narrower blocks carry only the exceptions. This loses nothing.
 - IPv6 addresses are looked up per /32, the smallest block that registries give to an ISP. Each /32 gets the country of its first address. A few IPv6 visitors can get the country of a neighbouring network.

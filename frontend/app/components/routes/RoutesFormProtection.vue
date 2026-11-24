@@ -25,7 +25,7 @@ const listLabel = computed(() => (replace.value ? "Countries (replaces the globa
       description="Off: these countries add to the global list. On: only these are blocked, and an empty list opens the site to every country"
     />
     <UFormField v-if="draft.geoip_enabled" :label="listLabel" name="geoip.block_countries">
-      <GeoipCountryPicker v-model="draft.block_countries" />
+      <GeoipCountryPicker v-model="draft.block_countries" :replaces="replace" />
     </UFormField>
     <p v-else-if="draft.block_countries.length" class="text-sm text-muted">
       Off. Kept for later: {{ draft.block_countries.map(countryName).join(", ") }}
