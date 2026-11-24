@@ -2,7 +2,7 @@
 #MISE description="Build the image, smoke-test it, then start it in compose on random ports and run the integration tests"
 #MISE depends=["image"]
 # Extra arguments go to pytest, for example `mise run test-integration -- -k healthz`. A test path,
-# relative to backend/, runs only that path: `-- tests/integration/api/test_api_dns.py`.
+# relative to backend/, runs only that path: `-- tests/integration/dns/test_dns_apply_live.py`.
 # The fixtures remove what they start when the run ends.
 set -euo pipefail
 cd "${MISE_PROJECT_ROOT:?}/backend"

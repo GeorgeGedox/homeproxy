@@ -11,7 +11,7 @@ from homeproxy.auth import setup_detection
 from homeproxy.auth.runtime import ensure_session_key, get_runtime
 from homeproxy.auth.server import BOOTSTRAP_ENV
 from homeproxy.store import Store
-from tests.integration.api.conftest import PASSWORD, make_client
+from tests.unit.api.conftest import PASSWORD, make_client
 
 LAN_IP = "192.168.1.10"
 # /proc/net/route on a host whose default route leaves eth0 on 192.168.1.0/24.

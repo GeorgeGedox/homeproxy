@@ -11,7 +11,7 @@ from homeproxy.geoip.data import GeoipData, save_country_map
 from homeproxy.store import Store, load_tree
 from homeproxy.store.pending import PendingChanges
 from homeproxy.store.tree import dump_tree
-from tests.integration.api.conftest import CLOUDFLARE_TOKEN
+from tests.unit.api.conftest import CLOUDFLARE_TOKEN
 
 CHANGES = "/api/v1/changes"
 ROUTE = {

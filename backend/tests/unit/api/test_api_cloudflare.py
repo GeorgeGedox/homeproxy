@@ -11,7 +11,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.store import Store
-from tests.integration.api.conftest import make_client
+from tests.unit.api.conftest import make_client
 from tests.unit.cloudflare.conftest import FakeCloudflare, cloudflare, store
 
 __all__ = ["cloudflare", "store"]  # fixtures, imported so pytest finds them in this module
