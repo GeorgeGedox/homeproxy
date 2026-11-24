@@ -5,13 +5,13 @@ One container: HAProxy 3.4 (official `haproxy` image, Debian trixie), the Python
 ## Build and test
 
 ```sh
-mise run image                       # amd64: build, smoke test
+mise run image                       # this machine's architecture: build, smoke test
 docker build -f image/Dockerfile .   # build only
 ```
 
 `mise run image` tags `homeproxy:<COMPOSE_PROJECT_NAME>`, which the integration tests use.
 
-Only amd64 is built and tested. The Dockerfile keeps its arm64 support (architecture switch, arm64 checksums, multi-arch base pins), but arm64 is untested.
+CI and the release build amd64 and arm64, each on a native runner. amd64 runs the smoke, integration and end-to-end tests; arm64 runs the smoke test. Renovate updates the pinned versions and checksums (`renovate.json`): keep the `# vX` comment on each checksum line.
 
 `image/test/smoke.sh` boots the image on random host ports and checks the placeholder, `/api/v1/healthz`, the unprivileged HAProxy user, the bundled binaries, and that killing or stopping the API leaves HAProxy serving.
 

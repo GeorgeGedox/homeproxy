@@ -1,5 +1,7 @@
 name: ci
 
+# Every PR and every push to dev runs the full suite, so a broken dev shows up the day it breaks
+# and Renovate merges only what passed. The main ruleset requires these jobs.
 on:
   push:
     branches: [dev]
@@ -29,3 +31,43 @@ jobs:
       - name: Check
         run: mise run check
 
+  integration:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: Integration tests
+        run: mise run test-integration
+
+  e2e:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: End-to-end tests
+        run: mise run test-e2e
+
+  # arm64 builds and smoke-tests natively. The integration and end-to-end suites run on amd64 only
+  # until they are proven on this runner.
+  image-arm64:
+    runs-on: ubuntu-24.04-arm
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
+        with:
+          version: 2026.9.7
+      - name: Build and smoke-test
+        run: mise run image

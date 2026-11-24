@@ -19,9 +19,9 @@ curl -fsSLo compose.yaml https://raw.githubusercontent.com/GeorgeGedox/homeproxy
 
 ## 2. Get the image
 
-`compose.yaml` runs `ghcr.io/georgegedox/homeproxy:latest`, which each release publishes for amd64. Compose pulls it in step 4.
+`compose.yaml` runs `ghcr.io/georgegedox/homeproxy:latest`, which each release publishes for amd64 and arm64. Compose pulls it in step 4. [Releases and updates](releases.md#image-tags) lists the other tags.
 
-To build the image from source instead, for example on arm64:
+To build the image from source instead:
 
 ```sh
 git clone https://github.com/GeorgeGedox/homeproxy.git homeproxy-src
@@ -36,7 +36,7 @@ The defaults need no changes when ports 80 and 443 are free. To change one, put 
 
 | Variable | Default | Meaning |
 | --- | --- | --- |
-| `HOMEPROXY_IMAGE` | `ghcr.io/georgegedox/homeproxy:latest` | The image to run. Name a version, such as `ghcr.io/georgegedox/homeproxy:0.1.0`, to update only when you change it |
+| `HOMEPROXY_IMAGE` | `ghcr.io/georgegedox/homeproxy:latest` | The image to run. Name a version, such as `ghcr.io/georgegedox/homeproxy:0.1.0`, to update only when you change it. See [Releases and updates](releases.md#image-tags) |
 | `HOMEPROXY_DATA` | volume `homeproxy-data` | What is mounted at `/data`. A volume name, or an absolute path such as `/srv/homeproxy` for a directory on local disk |
 | `HOMEPROXY_BOOTSTRAP_LISTEN` | port 8443 on the default route's address | `ip:port` of the setup page. See [Dashboard access](dashboard-access.md) |
 | `HOMEPROXY_PLACEHOLDER_HTTP_PORT` | `80` | Port of the page HAProxy serves before setup. Set it when something else holds port 80 |
@@ -161,7 +161,7 @@ docker compose up -d
 
 With a version in `HOMEPROXY_IMAGE`, change it to the new version first. The [releases page](https://github.com/GeorgeGedox/homeproxy/releases) lists each version and its changes. With an image you built, rebuild it with the command from step 2 instead of `docker compose pull`.
 
-Compose replaces the container and keeps `/data`. HAProxy is down for a few seconds. Config files that an older version wrote are migrated on start, and the originals are kept in `/data/migration-backups`.
+Compose replaces the container and keeps `/data`. HAProxy is down for a few seconds. Config files that an older version wrote are migrated on start, and the originals are kept in `/data/migration-backups`. To go back to an earlier version, see [Releases and updates](releases.md#go-back-to-an-earlier-version).
 
 ## Stop and remove
 
