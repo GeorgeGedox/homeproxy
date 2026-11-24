@@ -5,7 +5,7 @@ HomeProxy blocks countries in HAProxy, and shows the country of every request in
 ## In the dashboard
 
 - **Security, Countries card:** pick the countries blocked on every public site. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
-- **A site's settings, Protection:** **Block countries** adds countries for that site only.
+- **A site's settings, Protection:** **Block countries** blocks countries on that site only. The list is labeled "Countries (adds to the global list)". Turn on **Replace the global list** to change the label to "Countries (replaces the global list)". Then only the countries of the site list are blocked on that site. An empty list opens the site to every country.
 
 Each change is staged and takes effect at the next apply.
 
@@ -23,6 +23,13 @@ geoip:
 geoip: {block_countries: [US]}  # blocked on this route, on top of the global list
 ```
 
+```yaml
+# routes/public-api.yaml
+geoip: {mode: replace}  # the global list does not apply: open to every country
+```
+
+`mode` is `add` (the default) or `replace`. With `replace`, the site list is the only list that blocks countries on that route.
+
 Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are ISO 3166 codes, but DB-IP and MaxMind also use `XK` for Kosovo. A lowercase code is saved in capitals. A save refuses a code that the data does not have, and refuses any new code before the first download, with the error of the last download when it failed. Codes already in a list never block a save, so a list can always shrink. Block lists change HAProxy only through an apply, which reloads it with the ranges of the countries now blocked. An apply does not fail over a code the data does not have, or over a block list with no data, such as one written by hand in `config.yaml`. It warns that those countries are not blocked.
 
 ## What a block does
@@ -30,7 +37,7 @@ Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are
 - A request from a blocked country gets a plain 403 on a public route.
 - Clients in `network.lan_cidrs` are never blocked.
 - A route with exposure `lan` already refuses every client from outside the LAN, so its own list has no effect.
-- `geoip: {enabled: false, block_countries: [US]}` keeps the route's list but blocks nothing on that route. The global list still applies to it, and its countries are not loaded into HAProxy's map.
+- `geoip: {enabled: false, block_countries: [US]}` keeps the route's list but blocks nothing on that route. The global list still applies to it, even when `mode` is `replace`, and its countries are not loaded into HAProxy's map.
 - On a route Cloudflare proxies, the country is the visitor's, never the one of Cloudflare's edge (see [Real client IP behind Cloudflare](real-client-ip.md)). On any other route, a request through Cloudflare gets the country of Cloudflare's address. Visitors with IPv6 addresses are looked up too.
 - An address with no country, such as a private or reserved range, is never blocked and has an empty country in the logs.
 - Requests from countries you do not block are logged and counted with their country too. A blocked request is logged with the country it was blocked for.

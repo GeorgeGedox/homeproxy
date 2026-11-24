@@ -305,13 +305,18 @@ def _plain_http(route: HttpRoute | RedirectRoute, config: Config) -> bool:
 def _country_blocks(routes: Iterable[Route], config: Config) -> dict[str, set[str]]:
     """Return the countries blocked on each public route, by route name. The global list applies
     to every public route. A LAN-only route already refuses every outside client. A route list
-    that is off blocks nothing."""
+    that is off blocks nothing. A route list that replaces the global list stands alone."""
     blocked = config.geoip.block_countries
     return {
-        route.name: {*blocked, *(route.geoip.block_countries if route.geoip.enabled else ())}
-        for route in routes
-        if route.exposure == "public"
+        route.name: _route_blocks(route, blocked) for route in routes if route.exposure == "public"
     }
+
+
+def _route_blocks(route: Route, blocked: Iterable[str]) -> set[str]:
+    own = route.geoip
+    if not own.enabled:
+        return set(blocked)
+    return set(own.block_countries) if own.mode == "replace" else {*blocked, *own.block_countries}
 
 
 def _country_map(text: str, blocked: set[str]) -> str:

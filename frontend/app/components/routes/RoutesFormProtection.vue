@@ -4,8 +4,10 @@ import type { RouteUser } from "~/utils/route";
 const draft = defineModel<RouteDraft>({ required: true });
 const users = defineModel<RouteUser[]>("users", { required: true });
 const password = computed({ get: () => draft.value.auth === "basic", set: (on: boolean) => (draft.value.auth = on ? "basic" : "none") });
+const replace = computed({ get: () => draft.value.geoip_mode === "replace", set: (on: boolean) => (draft.value.geoip_mode = on ? "replace" : "add") });
 const blockNote = computed(() =>
-  draft.value.exposure === "public" ? "Visitors from these countries get 403, on top of the global list" : "Checked only while the site is public");
+  draft.value.exposure === "public" ? "Visitors from these countries get 403" : "Checked only while the site is public");
+const listLabel = computed(() => (replace.value ? "Countries (replaces the global list)" : "Countries (adds to the global list)"));
 </script>
 
 <template>
@@ -18,7 +20,11 @@ const blockNote = computed(() =>
       </UFormField>
     </template>
     <USwitch v-model="draft.geoip_enabled" label="Block countries" :description="blockNote" />
-    <UFormField v-if="draft.geoip_enabled" name="geoip.block_countries">
+    <USwitch
+      v-if="draft.geoip_enabled" v-model="replace" label="Replace the global list"
+      description="Off: these countries add to the global list. On: only these are blocked, and an empty list opens the site to every country"
+    />
+    <UFormField v-if="draft.geoip_enabled" :label="listLabel" name="geoip.block_countries">
       <GeoipCountryPicker v-model="draft.block_countries" />
     </UFormField>
     <p v-else-if="draft.block_countries.length" class="text-sm text-muted">

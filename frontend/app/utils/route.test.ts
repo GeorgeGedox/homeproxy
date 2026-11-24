@@ -28,8 +28,16 @@ describe("draftToRoute", () => {
   });
   it("saves the country switch with a list, and leaves the file's flag alone without one", () => {
     expect(draftToRoute({ ...draft, geoip_enabled: false })).toMatchObject({ geoip: { enabled: false, block_countries: ["CN"] } });
-    const original = { ...draftToRoute(draft), name: "app-api", geoip: { enabled: true, block_countries: [] } } as Route;
+    const original = { ...draftToRoute(draft), name: "app-api", geoip: { enabled: true, block_countries: [], mode: "add" } } as Route;
     expect(draftToRoute({ ...routeToDraft(original) }, original).geoip).toEqual({ enabled: true, block_countries: [] });
+  });
+  it("saves a replacing country list, even an empty one, and drops the mode when it adds again", () => {
+    const replacing = draftToRoute({ ...draft, block_countries: [], geoip_mode: "replace" });
+    expect(replacing).toMatchObject({ geoip: { enabled: true, block_countries: [], mode: "replace" } });
+    const original = { ...replacing, name: "app-api" } as Route;
+    expect(routeToDraft(original)).toMatchObject({ geoip_enabled: true, geoip_mode: "replace" });
+    const adding = draftToRoute({ ...routeToDraft(original), geoip_mode: "add" }, original);
+    expect(JSON.parse(JSON.stringify(adding.geoip))).not.toHaveProperty("mode");
   });
   it("turns a zone-default proxied flag into off for passthrough, which has no default", () => {
     expect(draftToRoute({ ...draft, type: "passthrough", cloudflare_proxied: null })).toMatchObject({ cloudflare: { proxied: false } });
