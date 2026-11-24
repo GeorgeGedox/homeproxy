@@ -1,8 +1,9 @@
 name: release
 
-# A `vX.Y.Z` tag that matches backend/pyproject.toml publishes the smoke-tested
-# amd64 image to GHCR as `X.Y.Z` and `latest`, then the GitHub release that the
-# HomeProxy update check reads.
+# A `vX.Y.Z` tag that matches backend/pyproject.toml publishes the amd64 image to
+# GHCR as `X.Y.Z` and `latest`, then the GitHub release that the HomeProxy update
+# check reads. The image is pushed only after check, the smoke test, and the
+# integration and end-to-end tests pass.
 on:
   push:
     tags: ["v*.*.*"]
@@ -18,7 +19,7 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-24.04
-    timeout-minutes: 45
+    timeout-minutes: 60
     env:
       TAG: ${{ github.ref_name }}
     steps:
@@ -40,8 +41,11 @@ jobs:
         run: gitleaks dir --no-banner --redact
       - name: Check
         run: mise run check
-      - name: Build and smoke-test the image
-        run: mise run image
+      # Each builds and smoke-tests the image first; the second build comes from the cache.
+      - name: Integration tests
+        run: mise run test-integration
+      - name: End-to-end tests
+        run: mise run test-e2e
       - name: Push the image
         env:
           GH_TOKEN: ${{ github.token }}
