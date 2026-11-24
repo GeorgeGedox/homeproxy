@@ -147,3 +147,52 @@ def test_adopt_errors(
 
     assert (response.status_code, response.json()["error"]["code"]) == (status, code)
     assert api.get("/api/v1/jobs").json() == []
+
+
+def test_adopt_route_record_marks_a_hand_made_record_and_is_audited(
+    cloudflare: FakeCloudflare, api: TestClient
+) -> None:
+    """Adopt changes only the comment and is audited, and the next sync replaces the A record."""
+    record = cloudflare.add("example.com", "jellyfin.example.com", content="192.0.2.9", type="A")
+
+    adopted = api.post("/api/v1/cloudflare/records/jellyfin.example.com/adopt")
+
+    assert adopted.status_code == 200, adopted.text
+    assert adopted.json() == {"host": "jellyfin.example.com", "route": "jellyfin"}
+    assert cloudflare.writes() == [f"PUT /zones/id-example.com/dns_records/{record}"]
+    stored = cloudflare.zone("example.com")[record]
+    assert (stored["content"], stored["comment"]) == (
+        "192.0.2.9",
+        "managed-by:homeproxy route:jellyfin",
+    )
+    audit = api.get("/api/v1/audit").json()[0]
+    assert (audit["action"], audit["details"]) == (
+        "cloudflare.adopt_route",
+        {"host": "jellyfin.example.com", "route": "jellyfin"},
+    )
+    assert api.post("/api/v1/cloudflare/reconcile").status_code == 200
+    assert record not in cloudflare.zone("example.com")  # the A record is replaced
+    assert [
+        (r["type"], r["content"])
+        for r in cloudflare.zone("example.com").values()
+        if r["name"] == "jellyfin.example.com"
+    ] == [("CNAME", "home.example.com")]
+
+
+@pytest.mark.parametrize(
+    ("host", "broken", "status", "code"),
+    [
+        pytest.param("nas.example.com", False, 409, "adopt_refused", id="no-route-uses-the-host"),
+        pytest.param("jellyfin.example.com", True, 502, "cloudflare_error", id="cloudflare-fails"),
+    ],
+)
+def test_adopt_route_record_errors(
+    cloudflare: FakeCloudflare, api: TestClient, host: str, broken: bool, status: int, code: str
+) -> None:
+    """A refused adoption and a failed Cloudflare call answer in the error shape."""
+    if broken:
+        cloudflare.broken["GET /zones"] = (500, {}, b"{}")
+
+    response = api.post(f"/api/v1/cloudflare/records/{host}/adopt")
+
+    assert (response.status_code, response.json()["error"]["code"]) == (status, code)

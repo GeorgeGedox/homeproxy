@@ -16,7 +16,14 @@ from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
 from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
-from homeproxy.cloudflare import CloudflareError, ReconcileError, ZoneResult, purge, reconcile
+from homeproxy.cloudflare import (
+    CloudflareError,
+    ReconcileError,
+    ZoneResult,
+    adopt_host,
+    purge,
+    reconcile,
+)
 from homeproxy.cloudflare.ddns import DdnsError, DdnsResult, adopt
 from homeproxy.jobs.reconcile import ReconcileRun
 from homeproxy.store.pending import PendingChanges
@@ -24,6 +31,13 @@ from homeproxy.store.pending import PendingChanges
 router = APIRouter(prefix="/api/v1", tags=["cloudflare"])
 
 _UPSTREAM: dict[int | str, dict[str, Any]] = {502: {"description": "A Cloudflare call failed"}}
+
+
+class AdoptedRecord(BaseModel):
+    """A hand-made record that now belongs to `route`. The next sync sets its content."""
+
+    host: str
+    route: str
 
 
 class CloudflareState(BaseModel):
@@ -119,3 +133,24 @@ def adopt_ddns(zone: str, runtime: Runtime, services: ServicesDep) -> DdnsResult
         store.audit.record("admin", "cloudflare.adopt", {"zone": zone, "record": result.record})
     services.ddns.submit(services.jobs)
     return result
+
+
+@router.post(
+    "/cloudflare/records/{host}/adopt",
+    response_model=AdoptedRecord,
+    responses=_UPSTREAM | {409: {"description": "No single hand-made record on a route host"}},
+)
+def adopt_route_record(host: str, runtime: Runtime) -> AdoptedRecord:
+    """Take ownership of the one hand-made record on a route's host.
+
+    Only the record's comment changes here. The next sync sets its content and proxy flag.
+    """
+    store = runtime.store
+    try:
+        route = adopt_host(store.load_config(), store.load_routes(), store.load_secrets(), host)
+    except ReconcileError as error:
+        raise ApiError(409, "adopt_refused", str(error)) from None
+    except CloudflareError as error:
+        raise ApiError(502, "cloudflare_error", str(error)) from None
+    store.audit.record("admin", "cloudflare.adopt_route", {"host": host, "route": route})
+    return AdoptedRecord(host=host, route=route)

@@ -75,6 +75,8 @@ class FakeCloudflare:
             record_id = self.add(zone, **body)
             return 200, ok(records[record_id])
         if method == "PUT":
+            if body["type"] != records[match[2]]["type"]:  # the real API does not promise this
+                return 400, {"success": False, "errors": [{"message": "type cannot change"}]}
             records[match[2]] |= body
             return 200, ok(records[match[2]])
         del records[match[2]]

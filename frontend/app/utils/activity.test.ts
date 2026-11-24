@@ -15,6 +15,7 @@ describe("activity", () => {
     ["security.decision.delete", { id: 7 }, "Decision 7 removed"],
     ["security.allowlist.add", { entry: "192.168.5.0/24" }, "192.168.5.0/24 always allowed"],
     ["cloudflare.purge", { deleted: ["app.example.com", "www.example.com"], errors: [] }, "Cloudflare site records removed: 2"],
+    ["cloudflare.adopt_route", { host: "app.example.com", route: "app" }, "Cloudflare record app.example.com adopted for app"],
     ["something.new", {}, "something.new"],
   ])("%s %j reads %s", (action, details, text) => expect(activityText(entry(action, details))).toBe(text));
 

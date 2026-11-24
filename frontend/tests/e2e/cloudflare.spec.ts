@@ -151,3 +151,37 @@ test("site records can be removed while Cloudflare is off, and the page says wha
   await expect(page.getByText("Removed 2 site records", { exact: true })).toBeVisible();
   await expect(page.getByRole("region", { name: "Cloudflare sync" })).toContainText("c.example.com: Cloudflare answered 500");
 });
+
+test("Adopt on a hand-made site record adopts it, then syncs", async ({ page }) => {
+  let adopted = false;
+  const zone = () => ({ zone: "example.com", changes: [], errors: [], records: [],
+    conflicts: adopted ? [] : [{ name: "app.example.com", route: "app" }] });
+  const calls = await mockCloudflarePage(page, {}, {
+    "GET /cloudflare/records": () => ({ enabled: true, last_reconcile: null, ddns_checked_at: null, ddns: [], zones: [zone()] }),
+    "POST /cloudflare/records/app.example.com/adopt": () => {
+      adopted = true;
+      return { host: "app.example.com", route: "app" };
+    },
+    "POST /cloudflare/reconcile": () => ({ at: new Date().toISOString(), error: "", zones: [] }),
+    "GET /routes": [{ ...route, cloudflare: { dns: true, proxied: null } }],
+  });
+  await page.goto("/cloudflare");
+  await expect(page.getByRole("listitem").filter({ hasText: "app.example.com" })).toContainText("Made by hand");
+  await page.getByRole("button", { name: "Adopt" }).click();
+  await expect(page.getByRole("button", { name: "Adopt" })).toHaveCount(0);
+  expect(calls["POST /cloudflare/reconcile"]).toBe(1);
+  await expect(page).toHaveURL(/\/cloudflare$/); // the row links to the site, and the button must not follow it
+});
+
+test("a refused adoption of a site record shows why", async ({ page }) => {
+  await mockCloudflarePage(page, {}, {
+    "GET /cloudflare/records": () => ({ enabled: true, last_reconcile: null, ddns_checked_at: null, ddns: [],
+      zones: [{ zone: "example.com", changes: [], errors: [], records: [], conflicts: [{ name: "app.example.com", route: "app" }] }] }),
+  });
+  await page.route("**/api/v1/cloudflare/records/*/adopt", (request) => request.fulfill({
+    status: 409, contentType: "application/json", body: JSON.stringify({ error: { code: "adopt_refused", message: "app.example.com has 2 records, so there is no one to adopt", field: null } }),
+  }));
+  await page.goto("/cloudflare");
+  await page.getByRole("button", { name: "Adopt" }).click();
+  await expect(page.getByText("has 2 records, so there is no one to adopt")).toBeVisible();
+});
