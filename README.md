@@ -2,7 +2,7 @@
 
 A self-hosted reverse proxy manager for home labs. One container bundles HAProxy with a small dashboard that only your LAN can reach. You manage routes, domains, certificates, DNS and protection from the dashboard. HAProxy does all the proxying: the dashboard writes its config and talks to its sockets, so traffic keeps flowing on the last good config if the dashboard stops.
 
-> **Status: pre-release.** There is no published image or release yet, so you build the image from this repository. Only amd64 is built and tested. It has not yet run on a real network, beyond its own tests. Expect rough edges.
+> **Status: pre-release.** Release tags publish an amd64 image; arm64 is not built or tested yet. It runs one real home lab so far. Expect rough edges.
 
 ## What it does
 
