@@ -1,7 +1,8 @@
 # HomeProxy image. Build from the repository root:
 #   docker build -f image/Dockerfile .
-# Every base image and downloaded binary is pinned by version and digest. The
-# The planned Renovate and HAProxy rebuild jobs bump these ARGs.
+# Every base image and downloaded binary is pinned by version and digest.
+# Renovate bumps these ARGs (renovate.json): keep the `# vX` comments on the
+# checksum lines, which tell it the version each checksum belongs to.
 
 ARG HAPROXY_IMAGE=haproxy:3.4.7@sha256:f6d2ee87b47192d9cc8c22e88fef405122ff339859644883edc2a7d1827f87b3
 ARG DEBIAN_IMAGE=debian:trixie-slim@sha256:a72b4433de1cf7d6bae0c4cee74d0547f58601a643b3375f070c51600d63b6b2
@@ -9,6 +10,7 @@ ARG LEGO_IMAGE=goacme/lego:v5.6.0@sha256:6f1583fc026a455ea46a7a5858c576105bb69c2
 ARG UV_IMAGE=ghcr.io/astral-sh/uv:0.13.7@sha256:96f40d3904aad8d0bd010539001d36c8e2188b981e1334471a90c4a1d93bb490
 ARG NODE_IMAGE=node:24.22.2-trixie-slim@sha256:0820eaa85e07d0490446dd01d14707e17e6108a36988cf374899cd057eb3812d
 # Keep PNPM_VERSION and the node image in step with mise.toml.
+# renovate: datasource=npm depName=pnpm
 ARG PNPM_VERSION=12.18.0
 
 # ---- lego and uv: static binaries copied out of their pinned images ----------
@@ -21,13 +23,13 @@ FROM ${UV_IMAGE} AS uv
 FROM --platform=$BUILDPLATFORM ${DEBIAN_IMAGE} AS fetch
 SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 ARG TARGETARCH
-ARG S6_OVERLAY_VERSION=3.2.3.2
-ARG S6_SHA256_NOARCH=5379750ed30a84bbd2e2dd74847ba6b5bd29cd0b2e3ea2ec58049b57eb2eda12
-ARG S6_SHA256_X86_64=e6befcc96a437a3831386ecfc51808c5d3e939dc5fe3c02ae9284599e8aa2408
-ARG S6_SHA256_AARCH64=b17f17a82e7a515c682a91edaf2ffdabb73f891981b6c1fd712115693a2f8b4c
-ARG SPOA_VERSION=0.4.0
-ARG SPOA_SHA256_AMD64=ffe736576d5eaa21367bb5f2db94dabe80c20917fa024f042273289348ecc143
-ARG SPOA_SHA256_ARM64=9f4c9d2569d8103cfea69658a761dcd4dd7fe67c95ba35b618797ba7c207f1dd
+ARG S6_OVERLAY_VERSION=v3.2.3.2
+ARG S6_SHA256_NOARCH=5379750ed30a84bbd2e2dd74847ba6b5bd29cd0b2e3ea2ec58049b57eb2eda12 # v3.2.3.2
+ARG S6_SHA256_X86_64=e6befcc96a437a3831386ecfc51808c5d3e939dc5fe3c02ae9284599e8aa2408 # v3.2.3.2
+ARG S6_SHA256_AARCH64=b17f17a82e7a515c682a91edaf2ffdabb73f891981b6c1fd712115693a2f8b4c # v3.2.3.2
+ARG SPOA_VERSION=v0.4.0
+ARG SPOA_SHA256_AMD64=ffe736576d5eaa21367bb5f2db94dabe80c20917fa024f042273289348ecc143 # v0.4.0
+ARG SPOA_SHA256_ARM64=9f4c9d2569d8103cfea69658a761dcd4dd7fe67c95ba35b618797ba7c207f1dd # v0.4.0
 ARG SPOA_SHA256_TEMPLATE_BAN=ededd9597fd4a95a09abc1d3c563e901680e8d9de428433a25d950f068b261b7
 ARG SPOA_SHA256_TEMPLATE_BAN_WITH_CONTACT=da3af2acbb300f1b3a79bdb13b66dfe03150b3afff821103431242e9e6f13cb2
 ARG SPOA_SHA256_TEMPLATE_CAPTCHA=b6e198c2e8a031c9dbc7fcb6c508bbb0bd30db15ac4ffaa3156ec125ccd01698
@@ -46,7 +48,7 @@ case "$TARGETARCH" in
   *) echo "unsupported architecture: $TARGETARCH" >&2; exit 1 ;;
 esac
 
-s6_url="https://github.com/just-containers/s6-overlay/releases/download/v${S6_OVERLAY_VERSION}"
+s6_url="https://github.com/just-containers/s6-overlay/releases/download/${S6_OVERLAY_VERSION}"
 curl -fsSLO "$s6_url/s6-overlay-noarch.tar.xz"
 curl -fsSLO "$s6_url/s6-overlay-$s6_arch.tar.xz"
 echo "$S6_SHA256_NOARCH  s6-overlay-noarch.tar.xz" | sha256sum -c -
@@ -55,16 +57,16 @@ mkdir -p /out/s6
 tar -C /out/s6 -Jxpf s6-overlay-noarch.tar.xz
 tar -C /out/s6 -Jxpf "s6-overlay-$s6_arch.tar.xz"
 
-spoa_url="https://github.com/crowdsecurity/cs-haproxy-spoa-bouncer/releases/download/v${SPOA_VERSION}"
+spoa_url="https://github.com/crowdsecurity/cs-haproxy-spoa-bouncer/releases/download/${SPOA_VERSION}"
 curl -fsSLO "$spoa_url/crowdsec-spoa-bouncer-linux-$TARGETARCH.tgz"
 echo "$spoa_sha  crowdsec-spoa-bouncer-linux-$TARGETARCH.tgz" | sha256sum -c -
 mkdir -p /out/spoa
 tar -C /out/spoa --strip-components=1 -xzf "crowdsec-spoa-bouncer-linux-$TARGETARCH.tgz" \
-  "crowdsec-spoa-bouncer-v${SPOA_VERSION}/crowdsec-spoa-bouncer"
+  "crowdsec-spoa-bouncer-${SPOA_VERSION}/crowdsec-spoa-bouncer"
 
 # The ban and captcha pages are not in the release archive. Take them from the
 # tagged source, one pinned file each.
-tpl_url="https://raw.githubusercontent.com/crowdsecurity/cs-haproxy-spoa-bouncer/v${SPOA_VERSION}/templates"
+tpl_url="https://raw.githubusercontent.com/crowdsecurity/cs-haproxy-spoa-bouncer/${SPOA_VERSION}/templates"
 mkdir -p /out/spoa-html
 curl -fsSL -o /out/spoa-html/ban.html "$tpl_url/ban.html"
 curl -fsSL -o /out/spoa-html/ban-with-contact.html "$tpl_url/ban-with-contact.html"

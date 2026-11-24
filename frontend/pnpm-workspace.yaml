@@ -1,3 +1,5 @@
 allowBuilds:
   esbuild: true
   vue-demi: false
+# Resolve only releases at least 3 days old, transitive ones included (docs/releases.md).
+minimumReleaseAge: 4320

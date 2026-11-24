@@ -1,0 +1,264 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "description": "Dependency updates. The release cycle is in docs/releases.md.",
+  "extends": [
+    "config:best-practices",
+    "customManagers:dockerfileVersions",
+    ":gitSignOff",
+    ":semanticCommitTypeAll(chore)"
+  ],
+  "baseBranchPatterns": [
+    "dev"
+  ],
+  "semanticCommits": "enabled",
+  "labels": [
+    "dependencies"
+  ],
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "minimumReleaseAge": "3 days",
+  "automerge": true,
+  "automergeType": "pr",
+  "ignorePaths": [
+    "**/node_modules/**"
+  ],
+  "platformAutomerge": false,
+  "ignoreDeps": [
+    "ghcr.io/georgegedox/homeproxy"
+  ],
+  "vulnerabilityAlerts": {
+    "semanticCommitType": "fix",
+    "automerge": true,
+    "labels": [
+      "dependencies",
+      "security"
+    ]
+  },
+  "customManagers": [
+    {
+      "description": "s6-overlay: the version and its checksum per release file",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^image/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG S6_OVERLAY_VERSION=(?<currentValue>v\\S+)",
+        "ARG S6_SHA256_\\w+=(?<currentDigest>[a-f0-9]{64}) # (?<currentValue>v\\S+)"
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "depNameTemplate": "just-containers/s6-overlay",
+      "versioningTemplate": "loose"
+    },
+    {
+      "description": "CrowdSec SPOA bouncer: the version and its checksum per architecture",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^image/Dockerfile$/"
+      ],
+      "matchStrings": [
+        "ARG SPOA_VERSION=(?<currentValue>v\\S+)",
+        "ARG SPOA_SHA256_(?:AMD64|ARM64)=(?<currentDigest>[a-f0-9]{64}) # (?<currentValue>v\\S+)"
+      ],
+      "datasourceTemplate": "github-release-attachments",
+      "depNameTemplate": "crowdsecurity/cs-haproxy-spoa-bouncer"
+    },
+    {
+      "description": "CrowdSec engine in the docs and the integration lab",
+      "customType": "regex",
+      "managerFilePatterns": [
+        "/^docs/crowdsec\\.md$/",
+        "/^backend/tests/integration/crowdsec_lab\\.py$/"
+      ],
+      "matchStrings": [
+        "(?<depName>crowdsecurity/crowdsec):(?<currentValue>v[0-9.]+)\"\\s*\"@(?<currentDigest>sha256:[a-f0-9]{64})\"",
+        "image: (?<depName>crowdsecurity/crowdsec):(?<currentValue>v[0-9.]+)\\n"
+      ],
+      "datasourceTemplate": "docker"
+    }
+  ],
+  "packageRules": [
+    {
+      "description": "Groups for the weekly batch",
+      "matchFileNames": [
+        "image/Dockerfile"
+      ],
+      "groupName": "image"
+    },
+    {
+      "matchManagers": [
+        "pep621"
+      ],
+      "groupName": "Python packages"
+    },
+    {
+      "matchManagers": [
+        "npm"
+      ],
+      "groupName": "npm packages"
+    },
+    {
+      "matchManagers": [
+        "mise"
+      ],
+      "groupName": "dev tools"
+    },
+    {
+      "description": "Pins that must move together in mise.toml and the Dockerfile",
+      "matchDepNames": [
+        "node"
+      ],
+      "groupName": "node"
+    },
+    {
+      "matchDepNames": [
+        "pnpm"
+      ],
+      "groupName": "pnpm"
+    },
+    {
+      "matchDepNames": [
+        "uv",
+        "ghcr.io/astral-sh/uv"
+      ],
+      "groupName": "uv"
+    },
+    {
+      "description": "Registries often give no release time for an image. Without one, the wait does not apply",
+      "matchDatasources": [
+        "docker"
+      ],
+      "minimumReleaseAgeBehaviour": "timestamp-optional"
+    },
+    {
+      "description": "All four pins of the CrowdSec engine in one PR",
+      "matchDepNames": [
+        "crowdsecurity/crowdsec"
+      ],
+      "groupName": "CrowdSec engine"
+    },
+    {
+      "description": "Users copy these, so they show a plain tag",
+      "matchFileNames": [
+        "docs/**",
+        "deploy/compose.crowdsec.yaml"
+      ],
+      "pinDigests": false
+    },
+    {
+      "description": "A digest is a rebuild of the same tag and has no release time",
+      "matchUpdateTypes": [
+        "digest",
+        "pinDigest"
+      ],
+      "minimumReleaseAge": null
+    },
+    {
+      "description": "Majors wait for the maintainer",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "Patches stay apart from a minor that waits for the maintainer",
+      "matchDepNames": [
+        "python",
+        "crowdsecurity/cs-haproxy-spoa-bouncer"
+      ],
+      "separateMinorPatch": true
+    },
+    {
+      "description": "Python follows Debian trixie's minor version: patches in mise.toml merge alone, a new minor waits",
+      "matchDepNames": [
+        "python"
+      ],
+      "groupName": "python",
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "automerge": false
+    },
+    {
+      "description": "requires-python moves only with the base image, by hand",
+      "matchManagers": [
+        "pep621"
+      ],
+      "matchDepNames": [
+        "python"
+      ],
+      "enabled": false
+    },
+    {
+      "description": "The SPOA bouncer is 0.x and on the request path, so only patches merge alone",
+      "matchDepNames": [
+        "crowdsecurity/cs-haproxy-spoa-bouncer"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "automerge": false,
+      "groupName": "CrowdSec SPOA bouncer"
+    },
+    {
+      "description": "GitHub Actions, majors included, merge alone once CI passes",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions",
+      "automerge": true
+    },
+    {
+      "description": "A new runner OS is not an action: it waits",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchDepNames": [
+        "ubuntu"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "automerge": false,
+      "groupName": "runner OS"
+    },
+    {
+      "description": "HAProxy: LTS branches only (even minors). Patches stay apart from a waiting new branch",
+      "matchDepNames": [
+        "haproxy"
+      ],
+      "allowedVersions": "/^\\d+\\.\\d*[02468]\\.\\d+$/",
+      "separateMinorPatch": true
+    },
+    {
+      "description": "A HAProxy patch starts a release at once. Its digest rebuilds go in the weekly image group",
+      "matchDepNames": [
+        "haproxy"
+      ],
+      "matchUpdateTypes": [
+        "patch"
+      ],
+      "groupName": "HAProxy",
+      "schedule": [
+        "at any time"
+      ],
+      "minimumReleaseAge": null,
+      "semanticCommitType": "fix"
+    },
+    {
+      "description": "A new HAProxy LTS branch waits for the maintainer and makes a minor release",
+      "matchDepNames": [
+        "haproxy"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "major"
+      ],
+      "automerge": false,
+      "semanticCommitType": "feat",
+      "groupName": "HAProxy LTS"
+    }
+  ]
+}
