@@ -136,8 +136,9 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 ## Workflow
 
 - `main` holds the latest release and is the default branch. All work goes to `dev`.
-- For an issue: make a branch from `dev`, then open a PR into `dev` with `gh pr create --base dev`. Put `Closes #N` in the PR description. The PR is squashed, so the issue closes when the release reaches `main`.
-- A small change that you can do and test in one session can go straight to `dev` as a commit.
+- Commit straight to `dev` by default. There is one maintainer, so a branch only adds steps.
+- For a small issue, put `Closes #N` in the commit message. The issue closes when the release reaches `main`.
+- Use a branch and a PR into `dev` (`gh pr create --base dev`) only for issue work that needs one, such as work over several sessions or work that needs a review. Put `Closes #N` in the PR description. The PR is squashed, so the keyword reaches `main` in the squash commit.
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior changes, `test-e2e` when the UI changes, and `image` when the image changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`.
 - Never commit secrets, generated client output or local data.
