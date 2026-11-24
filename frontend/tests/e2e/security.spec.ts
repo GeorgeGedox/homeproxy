@@ -53,6 +53,22 @@ test("blocklist decisions are hidden until asked for, and unbanning one offers t
   await expect(page.getByText("Nobody is banned right now.")).toBeVisible();
 });
 
+test("when the unban fails after the allowlist, the allowlist shows the address and the error says the decision stayed", async ({ page }) => {
+  const allowlist: string[] = [];
+  await mockSecurity(page, {
+    "GET /security/decisions": () => [decision(2, "198.51.100.9", "CAPI")],
+    "GET /security/allowlist": () => allowlist,
+    "POST /security/allowlist": (body) => (allowlist.push((body as { entry: string }).entry), { allowlist, warnings: [] }),
+  });
+  await page.goto("/security");
+  await page.getByLabel("Find an address").fill("198.51");
+  await page.getByRole("button", { name: "Unban 198.51.100.9" }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "Allowlist and unban" }).click();
+
+  await expect(page.getByText("The address is allowlisted, but its decision was not removed.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Always allowed" })).toContainText("198.51.100.9");
+});
+
 test("a refused ban keeps the dialog open with the reason", async ({ page }) => {
   const message = "The CrowdSec API refused the decision: value is not an address or a range.";
   await mockSecurity(page, { "GET /security/decisions": () => [] });

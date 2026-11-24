@@ -44,8 +44,13 @@ export function useDecisions() {
   const longerThan = (item: Decision) => DURATIONS.filter(({ value }) => value > (new Date(item.expires_at).getTime() - Date.now()) / 1000);
 
   const allowlist = (item: Decision) => act(() => api.POST("/api/v1/security/allowlist", { body: { entry: item.value } }), "The address was not allowlisted.");
-  /** Allowlist the address, then unban it: a blocklist decision would come back at the next pull. */
-  const allowlistAndUnban = async (item: Decision) => (await allowlist(item)) && (await unban(item));
+  /** Allowlist the address, then unban it: a blocklist decision would come back at the next pull.
+   * True once the address is allowlisted, even when the unban then fails. */
+  async function allowlistAndUnban(item: Decision): Promise<boolean> {
+    if (!(await allowlist(item))) return false;
+    await act(removeCall(item), "The address is allowlisted, but its decision was not removed.");
+    return true;
+  }
 
   /** "12 bans, 2 captchas, 1,204 from blocklists". */
   const summary = computed(() => {
