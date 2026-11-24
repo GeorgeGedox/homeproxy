@@ -102,6 +102,26 @@ def api(data_dir: Path) -> TestClient:
     return client
 
 
+def stage_config(api: TestClient) -> None:
+    """Stage a change to `config.yaml`."""
+    settings = api.get("/api/v1/settings").json()
+    settings["dns_server"]["forward_unknown_to"] = ["192.168.1.1"]
+    assert api.put("/api/v1/settings", json=settings).json()["changed"] is True
+
+
+def stage_route(api: TestClient) -> None:
+    """Stage a new route, which leaves `config.yaml` as it is."""
+    route = {
+        "version": 1,
+        "name": "staged",
+        "type": "http",
+        "hosts": ["staged.example.com"],
+        "exposure": "lan",
+        "upstreams": [{"address": "192.168.1.20:8080"}],
+    }
+    assert api.post("/api/v1/routes", json=route).status_code == 201
+
+
 CLOUDFLARE_TOKEN = "api-test-cloudflare-token"  # noqa: S105 - accepted by the fake Cloudflare
 DOMAIN = """\
 domains:

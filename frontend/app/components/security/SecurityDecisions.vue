@@ -59,7 +59,7 @@ const menu = (item: Decision): DropdownMenuItem[] => [
   ...(list.longerThan(item).length
     ? [{ label: "Extend", children: list.longerThan(item).map(({ label, value }) => ({ label, onSelect: () => void list.extend(item, value) })) }]
     : []),
-  ...(FROM_BLOCKLIST.includes(item.origin) ? [{ label: "Allowlist", disabled: pending.staged.value, onSelect: () => void allowlist(item, false) }] : []),
+  ...(FROM_BLOCKLIST.includes(item.origin) ? [{ label: "Allowlist", disabled: pending.configStaged.value, onSelect: () => void allowlist(item, false) }] : []),
 ];
 </script>
 
@@ -115,10 +115,10 @@ const menu = (item: Decision): DropdownMenuItem[] => [
     <UModal :open="Boolean(asking)" :title="`${asking?.value} is on a blocklist`" @update:open="(open) => !open && (asking = undefined)">
       <template #description>
         Unban lets it in until the next blocklist pull, when it may come back. Allowlist it to let it in for good.
-        <template v-if="pending.staged.value">The allowlist waits until the staged changes are applied or discarded.</template>
+        <template v-if="pending.configStaged.value">The allowlist waits until the staged change to config.yaml is applied or discarded.</template>
       </template>
       <template #footer>
-        <UButton label="Allowlist and unban" :disabled="pending.staged.value" @click="allowlist(asking!, true)" />
+        <UButton label="Allowlist and unban" :disabled="pending.configStaged.value" @click="allowlist(asking!, true)" />
         <UButton color="neutral" variant="outline" label="Unban only" @click="unbanOnly(asking!)" />
         <UButton color="neutral" variant="ghost" label="Cancel" @click="asking = undefined" />
       </template>

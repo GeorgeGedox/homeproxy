@@ -17,6 +17,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.store import Store, load_tree
+from tests.unit.api.conftest import stage_config, stage_route
 
 MACHINE_ID = "homeproxy-ui"
 MACHINE_PASSWORD = "api-test-machine-password"  # noqa: S105 - accepted by the fake LAPI
@@ -269,17 +270,19 @@ def test_allowlist_edits_are_saved_and_live_without_an_apply(
     assert api.get("/api/v1/changes").json()["changes"] == []
 
 
-def test_an_allowlist_edit_is_refused_while_changes_are_pending(
-    data_dir: Path, live_release: Path, api: TestClient
+def test_an_allowlist_edit_waits_only_for_a_staged_config(
+    live_release: Path, api: TestClient
 ) -> None:
-    settings = api.get("/api/v1/settings").json()
-    settings["dns_server"]["forward_unknown_to"] = ["192.168.1.1"]
-    assert api.put("/api/v1/settings", json=settings).json()["changed"] is True
+    """A staged `config.yaml` holds the old allowlist, so an apply would undo an edit. A staged
+    route does not touch `config.yaml`, so it does not block the edit."""
+    stage_route(api)
+    assert api.post("/api/v1/security/allowlist", json={"entry": "203.0.113.7"}).is_success
+    stage_config(api)
 
-    response = api.post("/api/v1/security/allowlist", json={"entry": "203.0.113.7"})
+    response = api.post("/api/v1/security/allowlist", json={"entry": "198.51.100.9"})
 
     assert (response.status_code, response.json()["error"]["code"]) == (409, "changes_pending")
-    assert api.get("/api/v1/security/allowlist").json() == []
+    assert api.get("/api/v1/security/allowlist").json() == ["203.0.113.7"]
 
 
 def test_an_allowlist_entry_that_is_not_an_address_is_refused(

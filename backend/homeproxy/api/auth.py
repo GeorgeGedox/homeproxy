@@ -44,7 +44,7 @@ def new_password_hash(password: SecretStr, field: str) -> str:
     responses={
         401: {"description": "No valid session"},
         403: {"description": "The current password is wrong"},
-        409: {"description": "Changes are pending; apply or discard them first"},
+        409: {"description": "config.yaml is staged; apply or discard it first"},
         422: {"description": "The new password does not meet the rules"},
         429: {"description": "Too many failed attempts; see Retry-After"},
     },
@@ -54,8 +54,8 @@ def change_password(
 ) -> Response:
     """Set a new password and sign out every other session. This one gets a new cookie.
 
-    Refused while changes are pending: a staged `config.yaml` holds the old hash, so applying it
-    would bring the old password back.
+    Refused while `config.yaml` is staged: the staged copy holds the old hash, so applying it would
+    bring the old password back.
     """
     wait = runtime.throttle.retry_after(peer)
     if wait is not None:
@@ -69,7 +69,7 @@ def change_password(
         )
     store = runtime.store
     with store.lock() as held:
-        if PendingChanges(store).status(held).changes:
+        if PendingChanges(store).config_staged(held):
             raise changes_pending()
         password_hash = new_password_hash(body.new_password, "new_password")
         tree = load_tree(store.config_path)

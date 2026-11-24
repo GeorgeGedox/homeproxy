@@ -70,3 +70,34 @@ def test_a_new_address_without_a_session_closes_after_the_window(
         assert (after["listen"], after["pending_listen"]) == (OLD_LISTEN, None)
     assert Store(tmp_path).load_config().dashboard.listen == OLD_LISTEN
     assert "not confirmed in time" in caplog.text
+
+
+def test_a_staged_route_does_not_stop_a_confirm(tmp_path: Path) -> None:
+    """A confirm writes `config.yaml` at once, so only a staged `config.yaml` stops it. A route
+    staged in the window does not."""
+    write_files(tmp_path, listen=OLD_LISTEN)
+    with running(tmp_path, confirm_seconds=30) as (port, context):
+        login = request(port, context, "POST", "/api/v1/auth/login", {"password": PASSWORD})
+        session = {"Cookie": (login.getheader("set-cookie") or "").split(";", 1)[0]}
+        new_port = free_port()
+        new_listen = f"127.0.0.1:{new_port}"
+        body = {"listen": new_listen, "session_ttl": "12h"}
+        assert (
+            request(port, context, "PUT", "/api/v1/settings/dashboard", body, session).status == 200
+        )
+        route = {
+            "version": 1,
+            "name": "staged",
+            "type": "http",
+            "hosts": ["staged.example.com"],
+            "exposure": "lan",
+            "upstreams": [{"address": "192.168.1.20:8080"}],
+        }
+        assert request(port, context, "POST", "/api/v1/routes", route, session).status == 201
+
+        there = request(new_port, context, "POST", "/api/v1/auth/login", {"password": PASSWORD})
+        new_session = {"Cookie": (there.getheader("set-cookie") or "").split(";", 1)[0]}
+        assert (
+            request(new_port, context, "GET", "/api/v1/auth/me", headers=new_session).status == 200
+        )
+    assert Store(tmp_path).load_config().dashboard.listen == new_listen

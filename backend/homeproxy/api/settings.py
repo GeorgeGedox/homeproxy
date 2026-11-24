@@ -2,9 +2,9 @@
 
 Every setting in `/settings` affects a generated file, so a change is staged in the pending change
 set and takes effect on the next apply. The dashboard settings affect no generated file. They are
-written to `config.yaml` at once, like the password, and are refused while edits are pending, whose
-staged `config.yaml` would bring the old values back. A new listen address is saved only once the
-admin reaches it (`homeproxy.auth.listen`).
+written to `config.yaml` at once, like the password, and are refused while `config.yaml` is
+staged, because applying the staged copy would bring the old values back. A new listen address is
+saved only once the admin reaches it (`homeproxy.auth.listen`).
 """
 
 import logging
@@ -240,12 +240,12 @@ def _view(runtime: Runtime, saved: Dashboard) -> DashboardView:
 
 
 def _saved_dashboard(store: Store, body: DashboardInput) -> Dashboard:
-    """Return the saved dashboard settings. Answer 409 if `body` changes them while edits are
-    pending."""
+    """Return the saved dashboard settings. Answer 409 if `body` changes them while `config.yaml`
+    is staged."""
     with edit_lock(store) as held:
         saved = validate_config(load_tree(store.config_path), store.config_path.name).dashboard
         changes = (body.listen, body.session_ttl) != (saved.listen, saved.session_ttl)
-        if changes and PendingChanges(store).status(held).changes:
+        if changes and PendingChanges(store).config_staged(held):
             raise changes_pending()
     return saved
 
@@ -301,12 +301,12 @@ def _check_overlap(saved: str, listen: str) -> None:
 
 
 def _save_listen(store: Store, listen: str) -> bool:
-    """Write a confirmed `dashboard.listen`. Return False, and save nothing, while edits are
-    pending or the file cannot be written."""
+    """Write a confirmed `dashboard.listen`. Return False, and save nothing, while `config.yaml` is
+    staged or the file cannot be written."""
     try:
         with edit_lock(store) as held:
-            if PendingChanges(store).status(held).changes:
-                logger.warning("dashboard.listen not confirmed: apply or discard pending changes")
+            if PendingChanges(store).config_staged(held):
+                logger.warning("dashboard.listen not confirmed: config.yaml is staged")
                 return False
             tree = load_tree(store.config_path)
             tree["dashboard"]["listen"] = listen
@@ -351,7 +351,7 @@ def get_dashboard(runtime: Runtime) -> DashboardView:
     response_model=DashboardView,
     responses={
         401: {"description": "No valid session"},
-        409: {"description": "Changes are pending; apply or discard them first"},
+        409: {"description": "config.yaml is staged; apply or discard it first"},
         422: {"description": "A value is not valid, or this host cannot listen on `listen`"},
     },
 )

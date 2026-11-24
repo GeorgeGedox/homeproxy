@@ -9,6 +9,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
+from typing import Any
 
 import uvicorn
 
@@ -85,7 +86,7 @@ def request(
     context: ssl.SSLContext,
     method: str,
     path: str,
-    body: dict[str, str] | None = None,
+    body: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
 ) -> http.client.HTTPResponse:
     """Send one HTTPS request with certificate and host name checks on."""

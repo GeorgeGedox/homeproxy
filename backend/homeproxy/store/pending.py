@@ -1,7 +1,7 @@
 """The pending change set: edits staged in `/data/pending` until an apply promotes them.
 
 API edits never write to `/data/config`, with two exceptions: a password change and an allowlist
-edit, which write `config.yaml` directly and are refused while edits are pending. Other edits stage
+edit, which write `config.yaml` directly and are refused while it is staged. Other edits stage
 a whole file, or the deletion of one, here.
 The pipeline reads `/data/config` overlaid with these edits, and calls `promote` only after
 HAProxy runs the new release. A failed apply, a refused promote or a discard leaves `/data/config`
@@ -243,6 +243,12 @@ class PendingChanges:
         changes = tuple(Change(path, kind) for path, kind in sorted(manifest.changes.items()))
         conflicting = self._conflicting_paths(manifest)
         return PendingStatus(changes, bool(conflicting), conflicting)
+
+    def config_staged(self, lock: HeldLock) -> bool:
+        """Return whether `config.yaml` is staged. An apply would then undo a direct write to it."""
+        lock.require(self._store.lock_path)
+        manifest = self._load()
+        return manifest is not None and CONFIG_FILE in manifest.changes
 
     def promote_started(self, lock: HeldLock) -> bool:
         """Return whether a crash cut a promote after it began, so `/data/config` has the edits.

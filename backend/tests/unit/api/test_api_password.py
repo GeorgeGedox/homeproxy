@@ -5,6 +5,8 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from tests.unit.api.conftest import stage_config, stage_route
+
 NEW_PASSWORD = "a brand new password"  # noqa: S105
 
 
@@ -40,24 +42,25 @@ def test_a_password_change_signs_out_other_sessions_and_keeps_this_one(
     assert NEW_PASSWORD not in text
 
 
-def test_a_password_change_is_refused_while_changes_are_pending(
+def test_a_password_change_waits_only_for_a_staged_config(
     api: TestClient, data_dir: Path, password: str
 ) -> None:
-    """A staged `config.yaml` holds the old hash, so the change must wait for apply or discard."""
-    settings = api.get("/api/v1/settings").json()
-    settings["cloudflare"]["enabled"] = True
-    assert api.put("/api/v1/settings", json=settings).status_code == 200
+    """A staged `config.yaml` holds the old hash, so the change must wait for apply or discard. A
+    staged route does not touch `config.yaml`, so it does not block the change."""
+    stage_route(api)
+    assert change(api, password) == 204
+    stage_config(api)
     live = data_dir / "config" / "config.yaml"
     staged = data_dir / "pending" / "files" / "config.yaml"
     before = (live.read_bytes(), staged.read_bytes())
 
-    body = {"current_password": password, "new_password": NEW_PASSWORD}
+    body = {"current_password": NEW_PASSWORD, "new_password": password}
     response = api.put("/api/v1/auth/password", json=body)
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "changes_pending"
     assert (live.read_bytes(), staged.read_bytes()) == before
-    assert login(api, password) == 204
+    assert login(api, NEW_PASSWORD) == 204
 
 
 @pytest.mark.parametrize(

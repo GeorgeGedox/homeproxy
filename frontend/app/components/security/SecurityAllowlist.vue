@@ -48,8 +48,8 @@ onMounted(() => void load());
         <UButton icon="lucide:x" color="neutral" variant="ghost" size="xs" :aria-label="`Remove ${item}`" @click="remove(item)" />
       </li>
     </ul>
-    <UForm ref="formRef" :state="{ entry }" :validate-on="[]" :disabled="pending.staged.value" class="space-y-2 px-4 py-3" @submit="add">
-      <UFormField name="entry" :description="pending.staged.value ? 'Apply or discard the staged changes first.' : undefined">
+    <UForm ref="formRef" :state="{ entry }" :validate-on="[]" :disabled="pending.configStaged.value" class="space-y-2 px-4 py-3" @submit="add">
+      <UFormField name="entry" :description="pending.configStaged.value ? 'Apply or discard the staged change to config.yaml first.' : undefined">
         <div class="flex gap-2">
           <UInput v-model="entry" placeholder="192.168.1.0/24" aria-label="Address or range to allow" class="min-w-0 flex-1 sm:max-w-xs" />
           <UButton type="submit" icon="lucide:plus" label="Allow" color="neutral" variant="outline" />

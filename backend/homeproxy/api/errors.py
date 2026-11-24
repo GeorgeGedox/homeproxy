@@ -42,8 +42,10 @@ def not_found(kind: str, key: str) -> ApiError:
 
 
 def changes_pending() -> ApiError:
-    """Return 409 for a change saved at once while staged changes wait for an apply."""
-    return ApiError(409, "changes_pending", "Apply or discard pending changes first.")
+    """Return 409 for a change saved at once to `config.yaml` while a staged copy waits for an
+    apply, which would undo it."""
+    message = "Apply or discard the pending change to config.yaml first."
+    return ApiError(409, "changes_pending", message)
 
 
 _ROUTE_TYPES = frozenset({"http", "passthrough", "tcp", "redirect"})

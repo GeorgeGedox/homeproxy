@@ -12,6 +12,7 @@ from fastapi.testclient import TestClient
 from homeproxy.haproxy.pipeline import ApplyResult, Pipeline
 from homeproxy.jobs import JobRunner
 from tests.conftest import free_port
+from tests.unit.api.conftest import stage_config, stage_route
 
 DASHBOARD = {"listen": "192.168.1.10:8443", "session_ttl": "12h"}
 """The dashboard settings of `data_dir`."""
@@ -282,14 +283,15 @@ def test_a_dashboard_change_that_could_lock_the_admin_out_or_expose_it_is_refuse
     assert api.get("/api/v1/settings/dashboard").json() == current
 
 
-def test_a_dashboard_change_waits_for_pending_edits(api: TestClient) -> None:
-    """A staged `config.yaml` holds the old dashboard settings, so an apply would undo a change."""
-    settings = api.get("/api/v1/settings").json()
-    settings["cloudflare"]["enabled"] = True
-    assert api.put("/api/v1/settings", json=settings).status_code == 200
+def test_a_dashboard_change_waits_only_for_a_staged_config(api: TestClient) -> None:
+    """A staged `config.yaml` holds the old dashboard settings, so an apply would undo a change. A
+    staged route does not touch `config.yaml`, so it does not block the change."""
+    stage_route(api)
+    assert api.put("/api/v1/settings/dashboard", json=DASHBOARD | {"session_ttl": "8h"}).is_success
+    stage_config(api)
 
-    response = api.put("/api/v1/settings/dashboard", json=DASHBOARD | {"session_ttl": "8h"})
+    response = api.put("/api/v1/settings/dashboard", json=DASHBOARD)
 
     assert response.status_code == 409
     assert response.json()["error"]["code"] == "changes_pending"
-    assert api.put("/api/v1/settings/dashboard", json=DASHBOARD).status_code == 200
+    assert api.get("/api/v1/settings/dashboard").json()["session_ttl"] == "8h"

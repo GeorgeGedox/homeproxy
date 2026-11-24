@@ -150,7 +150,7 @@ An allowlist change from the dashboard takes effect at once, with no apply. Home
 
 A range that reaches outside the private ranges, such as `198.51.0.0/16`, is added with a warning that names it, and every apply repeats the warning, because CrowdSec never checks any client in it. A single public address, such as one you allowlist from a ban, is no warning.
 
-The dashboard refuses an allowlist change while other changes are pending. Apply or discard them first. Their copy of `config.yaml` holds the old allowlist, and applying it would undo the change.
+The dashboard refuses an allowlist change while a change to `config.yaml` is pending, for example a settings, domain or DNS change. Apply or discard that change first. Its copy of `config.yaml` holds the old allowlist. If you apply that copy, it undoes the allowlist change. Other pending changes, such as a route, do not stop an allowlist change.
 
 If HAProxy does not answer, the change is still saved and the next apply uses it. Make the same change again to update HAProxy at once.
 

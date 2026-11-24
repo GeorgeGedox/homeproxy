@@ -3,7 +3,7 @@
 The LAPI calls block, so the endpoints are plain `def` and FastAPI runs them in a worker thread.
 Decisions use the dashboard's machine credentials from `secrets.yaml`, which no answer holds.
 Allowlist edits need no apply: they write `config.yaml`, HAProxy and the live release at once, and
-are refused while other changes are pending. Every change is written to the audit log.
+are refused while `config.yaml` is staged. Every change is written to the audit log.
 """
 
 import logging
@@ -46,7 +46,7 @@ _LAPI_RESPONSES: dict[int | str, dict[str, str]] = {
     502: {"description": "The LAPI could not be reached or refused the call"},
 }
 _ALLOWLIST_RESPONSES: dict[int | str, dict[str, str]] = {
-    409: {"description": "Changes are pending; apply or discard them first"},
+    409: {"description": "config.yaml is staged; apply or discard it first"},
     502: {"description": "The change is saved, but HAProxy could not be updated; send it again"},
 }
 
