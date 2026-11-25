@@ -15,7 +15,7 @@ from typing import Annotated, Literal
 from fastapi import APIRouter, Query, Request
 from starlette.concurrency import run_in_threadpool
 
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.logs import LogCollector
 from homeproxy.logs.metrics import Group, MetricsStore, SeriesPoint
 
@@ -97,6 +97,6 @@ def series(
     """
     store: MetricsStore | None = request.app.state.metrics
     if store is None:
-        raise AuthError(503, "metrics_unavailable", "The metrics file could not be opened.")
+        raise ApiError(503, "metrics_unavailable", "The metrics file could not be opened.")
     now = datetime.now(UTC)
     return store.series(now - _RANGES[period], now, group)

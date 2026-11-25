@@ -3,8 +3,10 @@
 The collector parses each line once, keeps the newest lines for the live tail and passes every
 line to its listeners, such as the metrics counters and the stored access log. HAProxy logs a
 country only when it is blocked somewhere, so the collector adds the country of the other access
-lines from the full GeoIP data. Lines that are not access lines, such as HAProxy's notice that a
-server went down, go to the `other` callback, which stores them in the `haproxy` log.
+lines from the full GeoIP data. A client in `network.lan_cidrs` gets the country `LAN` instead, so
+the stream and the metrics tell it apart from an address with no country. Lines that are not
+access lines, such as HAProxy's notice that a server went down, go to the `other` callback, which
+stores them in the `haproxy` log.
 
 HAProxy never waits for the collector: a datagram socket with a full queue, or with no reader,
 makes HAProxy drop the line and keep serving.
@@ -27,6 +29,9 @@ from homeproxy.util.redact import redact
 
 SYSLOG_SOCKET = "/run/homeproxy/syslog.sock"
 """Where HAProxy sends its access lines. The generated `global` section names the same path."""
+
+LAN_COUNTRY = "LAN"
+"""The country of a client in `network.lan_cidrs`. It never clashes with a country code."""
 
 TAIL_LENGTH = 5000
 """How many of the newest access lines the collector keeps for the live tail."""
@@ -93,12 +98,17 @@ class LogCollector:
         socket_path: Path | None = None,
         tail_length: int = TAIL_LENGTH,
         countries: CountryLookup | None = None,
+        lan: Callable[[str], bool] | None = None,
         other: OtherLines | None = None,
     ) -> None:
         """Prepare a collector on `socket_path`, which defaults to `SYSLOG_SOCKET`. A line that
-        HAProxy logged with no country gets its country from `countries`."""
+        HAProxy logged with no country gets its country from `countries`. A client for which `lan`
+        is true gets `LAN_COUNTRY`, whatever HAProxy logged. `lan` takes the address text and is
+        called for each line, so it reads the current `network.lan_cidrs`."""
         self.socket_path = socket_path if socket_path is not None else Path(SYSLOG_SOCKET)
         self.countries = countries
+        self._lan = lan
+        self._lan_problem = ""
         self._other = other
         self._tail: deque[AccessLog] = deque(maxlen=tail_length)
         self._listeners: list[Listener] = []
@@ -142,8 +152,10 @@ class LogCollector:
             if syslog is not None and self._other is not None:
                 self._other(*syslog)
             return None
+        if self._is_lan(entry.client_ip):
+            entry = replace(entry, country=LAN_COUNTRY)
         # HAProxy's country is the one it blocked on. The lookup can differ from it per /64.
-        if entry.country is None and self.countries is not None:
+        elif entry.country is None and self.countries is not None:
             country = self.countries.country(entry.client_ip)
             if country is not None:
                 entry = replace(entry, country=country)
@@ -155,6 +167,28 @@ class LogCollector:
                 # One broken listener must not stop the tail or the others.
                 logger.exception("a log listener failed")
         return entry
+
+    def _is_lan(self, address: str) -> bool:
+        """Ask the `lan` predicate. A failure counts as not LAN, so the line is never lost."""
+        if self._lan is None:
+            return False
+        try:
+            lan = self._lan(address)
+        except Exception as error:  # the predicate reads files, so any failure must not stop a line
+            self._report(type(error).__name__)
+            return False
+        self._report("")
+        return lan
+
+    def _report(self, problem: str) -> None:
+        """Log a LAN check problem once when it starts, and once when it ends."""
+        if problem == self._lan_problem:
+            return
+        if problem:
+            logger.warning("cannot tell LAN clients, the country lookup is used: %s", problem)
+        else:
+            logger.info("LAN clients are told apart again")
+        self._lan_problem = problem
 
     def tail(self) -> list[AccessLog]:
         """Return the kept access lines, oldest first."""

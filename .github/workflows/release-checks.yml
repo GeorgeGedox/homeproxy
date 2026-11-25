@@ -2,13 +2,17 @@ name: release-checks
 
 # Only for PRs into main, so the job never exists as a skipped check, which
 # GitHub would count as passed. The main ruleset requires it, beside the ci jobs
-# that run the full test suite on the same PR.
+# of the push run on dev for the same commit.
 on:
   pull_request:
     branches: [main]
 
 permissions:
   contents: read
+
+defaults:
+  run:
+    shell: bash
 
 concurrency:
   group: release-checks-${{ github.ref }}
@@ -27,12 +31,14 @@ jobs:
         with:
           persist-credentials: false
           # The version guard reads the commits and tags since the last release.
+          # fetch-tags is explicit: without tags, every check below would pass as
+          # if this were the first release.
           fetch-depth: 0
           fetch-tags: true
       - uses: jdx/mise-action@b44d12e7d0d8ee7461bb893e1b1993500433185b # v5.2.7
         with:
           version: 2026.9.7
-      - name: Release PR comes from dev with a new version
+      - name: The release PR has a new version that fits its commits
         env:
           HEAD_REF: ${{ github.head_ref }}
         run: |
@@ -41,30 +47,19 @@ jobs:
             exit 1
           fi
           version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
-          released=$(git tag --list 'v*' | sed 's/^v//')
-          if printf '%s\n' "$released" | grep -qxF "$version"; then
+          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+          if git rev-parse --verify --quiet "refs/tags/v$version" >/dev/null; then
             echo "v$version is already released: run mise run bump on dev" >&2
             exit 1
           fi
-          latest=$(printf '%s\n' "$released" | sort -V | tail -n 1)
           if [ -n "$latest" ] && [ "$(printf '%s\n%s\n' "$latest" "$version" | sort -V | tail -n 1)" != "$version" ]; then
             echo "v$version is not above the latest release v$latest" >&2
             exit 1
           fi
-          echo "releasing v$version"
-      - name: The version bump matches the commits
-        run: |
-          version=$(yq -p toml -oy '.project.version' backend/pyproject.toml)
-          latest=$(git tag --list 'v*' --sort=-v:refname | head -n 1 | sed 's/^v//')
+
           kind=$(mise run --quiet release-kind)
-          if [ -z "$latest" ] || [ "${version%.*}" != "${latest%.*}" ]; then
-            echo "v$version is a minor or major release; the commits call for: $kind"
-            exit 0
+          if [ -n "$latest" ] && [ "${version%.*}" = "${latest%.*}" ] && { [ "$kind" = minor ] || [ "$kind" = breaking ]; }; then
+            echo "v$version is a patch release, but the commits since v$latest call for $kind" >&2
+            exit 1
           fi
-          case "$kind" in
-            minor | breaking)
-              echo "v$version is a patch release, but the commits since v$latest call for $kind" >&2
-              exit 1
-              ;;
-          esac
-          echo "v$version is a patch release; the commits call for: $kind"
+          echo "releasing v$version; the commits call for: $kind"

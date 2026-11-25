@@ -18,7 +18,7 @@ Other updates of the parts in the image do not make a release. The next release 
 
 ## Image tags
 
-Each release publishes one image for amd64 and arm64 at `ghcr.io/georgegedox/homeproxy`. The arm64 image gets the smoke test on an arm64 machine. It has not run on a real arm64 home lab yet.
+Each release publishes one image for amd64 and arm64 at `ghcr.io/georgegedox/homeproxy`. Each image gets the smoke test, the integration tests and the end-to-end tests on a machine of its architecture. The arm64 image has not run on a real arm64 home lab yet.
 
 | Tag | Points to |
 | --- | --- |
@@ -74,7 +74,7 @@ gh attestation verify oci://ghcr.io/georgegedox/homeproxy:0.2.1 --repo GeorgeGed
 
 - Renovate opens its pull requests into `dev` on Monday mornings. It ignores a release that is less than 3 days old.
 - A new HAProxy patch and a security fix do not wait. Renovate opens their pull requests at any time.
-- A pull request merges by itself when all tests pass. These updates wait for the maintainer: a major version, a new HAProxy LTS branch, a new Python minor version and a new minor version of the CrowdSec SPOA bouncer.
+- A pull request merges by itself when all tests pass. These updates wait for the maintainer: a major version, also of a GitHub Action, a new HAProxy LTS branch and a new minor version of the CrowdSec SPOA bouncer. Renovate does not open a pull request for a new Python minor version, because Python follows the Debian version of the HAProxy image.
 
 The type of each commit on `dev` sets the next release:
 
@@ -87,10 +87,10 @@ The type of each commit on `dev` sets the next release:
 
 A HAProxy patch and a security fix come from Renovate as `fix` commits. Other dependency updates are `chore` commits.
 
-Each day at 04:17 UTC, the `release-pr` workflow opens or updates the pull request from `dev` into `main`. The maintainer can also start it from the Actions tab and select a patch or minor release. This ships updates that came as `chore` commits, for example a Debian security fix. When the pull request merges, the `release` workflow does these steps:
+Each day at 06:30 UTC, the `release-pr` workflow opens or updates the pull request from `dev` into `main`. The maintainer can also start it from the Actions tab and select a patch or minor release. This ships updates that came as `chore` commits, for example a Debian security fix. When the pull request merges, the `release` workflow does these steps:
 
 1. It builds the image for each architecture on a machine of that architecture.
-2. It tests the image. amd64 gets the integration tests, the end-to-end tests and the smoke test. arm64 gets the smoke test.
+2. It tests each image with the smoke test, the integration tests and the end-to-end tests.
 3. It pushes the tested images, adds the tags and attests the image.
 4. It creates the GitHub release with the release notes.
 

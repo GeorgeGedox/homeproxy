@@ -15,7 +15,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.logs import AccessLog, LogCollector
-from tests.integration.api.conftest import make_client
+from tests.unit.api.conftest import make_client
 
 Message = MutableMapping[str, Any]
 

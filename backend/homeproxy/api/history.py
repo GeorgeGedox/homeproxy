@@ -11,7 +11,7 @@ from fastapi import APIRouter
 from pydantic import BaseModel
 
 from homeproxy.api.changes import PendingSummary, edit_lock, pending_summary
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import not_found
 from homeproxy.auth.routes import Runtime
 from homeproxy.models import ChangeSummary
 from homeproxy.store.pending import PendingChanges
@@ -48,10 +48,6 @@ def _info(snapshot: Snapshot) -> SnapshotInfo:
     )
 
 
-def _not_found() -> AuthError:
-    return AuthError(404, "snapshot_not_found", "No snapshot has this id.")
-
-
 @router.get("/history", response_model=list[SnapshotInfo])
 def list_snapshots(runtime: Runtime) -> list[SnapshotInfo]:
     """Return the snapshots, newest first."""
@@ -66,7 +62,7 @@ def get_snapshot(snapshot_id: str, runtime: Runtime) -> SnapshotDetail:
         snapshot = snapshots.get(snapshot_id)
         diff = snapshots.diff(snapshot_id)
     except SnapshotNotFound:
-        raise _not_found() from None
+        raise not_found("snapshot", "id") from None
     return SnapshotDetail(**_info(snapshot).model_dump(), diff=diff)
 
 
@@ -86,5 +82,5 @@ def restore_snapshot(snapshot_id: str, runtime: Runtime) -> PendingSummary:
         try:
             Snapshots(store).restore(snapshot_id, held)
         except SnapshotNotFound:
-            raise _not_found() from None
+            raise not_found("snapshot", "id") from None
         return pending_summary(PendingChanges(store).status(held))

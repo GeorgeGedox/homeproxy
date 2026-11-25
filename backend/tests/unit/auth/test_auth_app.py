@@ -206,7 +206,15 @@ def test_wrong_password_is_401_and_sixth_attempt_is_throttled(
 
 @pytest.mark.parametrize(
     "body",
-    [b"", b"not json", b"[]", b'{"password": 5}', b'{"password": ""}', b'{"pw": "x"}'],
+    [
+        b"",
+        b"not json",
+        b"[]",
+        b'{"password": 5}',
+        b'{"password": ""}',
+        b'{"pw": "x"}',
+        b'{"password": "correct horse battery", "remember": true}',
+    ],
 )
 def test_malformed_login_is_422_without_echo(configured: tuple[FastAPI, Path], body: bytes) -> None:
     """Bad bodies get one fixed message, never the input."""

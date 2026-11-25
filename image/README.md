@@ -5,13 +5,14 @@ One container: HAProxy 3.4 (official `haproxy` image, Debian trixie), the Python
 ## Build and test
 
 ```sh
-mise run image                       # this machine's architecture: build, smoke test
+mise run image                       # build for this machine's architecture
+mise run test-integration            # build, smoke test, integration tests
 docker build -f image/Dockerfile .   # build only
 ```
 
 `mise run image` tags `homeproxy:<COMPOSE_PROJECT_NAME>`, which the integration tests use.
 
-CI and the release build amd64 and arm64, each on a native runner. amd64 runs the smoke, integration and end-to-end tests; arm64 runs the smoke test. Renovate updates the pinned versions and checksums (`renovate.json`): keep the `# vX` comment on each checksum line.
+CI and the release build amd64 and arm64, each on a native runner, and run the smoke, integration and end-to-end tests on both. Renovate updates the pinned versions and checksums (`renovate.json`): keep the `# vX` comment on each checksum line.
 
 `image/test/smoke.sh` boots the image on random host ports and checks the placeholder, `/api/v1/healthz`, the unprivileged HAProxy user, the bundled binaries, and that killing or stopping the API leaves HAProxy serving.
 

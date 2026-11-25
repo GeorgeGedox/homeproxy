@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test, type Reply } from "./fixtures";
 
 interface MockState {
   setup: boolean;
@@ -20,7 +20,6 @@ async function mockApi(page: Page): Promise<MockState> {
     dns_server: { listen: "192.168.1.10:5335" },
   };
   type Body = Record<string, string>;
-  type Reply = [number, unknown?];
   const handlers: Record<string, (body: Body) => Reply> = {
     "/setup/status": () => [200, state.setup ? { setup_required: false } : { setup_required: true, detected, needs: state.needs }],
     "/auth/me": () => (state.authenticated ? [200, { authenticated: true }] : [401, {}]),
@@ -37,11 +36,7 @@ async function mockApi(page: Page): Promise<MockState> {
     "/settings": () => [200, { dns_server: detected.dns_server }],
     "/changes": () => [200, { changes: [] }],
   };
-  await page.route("**/api/v1/**", (route) => {
-    const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
-    const [status, data] = handlers[path]?.(route.request().postDataJSON()) ?? [404, {}];
-    return route.fulfill({ status, contentType: "application/json", body: data ? JSON.stringify(data) : "" });
-  });
+  await routeApi<Body>(page, (_, path, body) => handlers[path]?.(body));
   return state;
 }
 

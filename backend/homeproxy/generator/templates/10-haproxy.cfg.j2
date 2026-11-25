@@ -96,16 +96,16 @@ frontend fe_https
     # the log collector then adds its country from the full data.
     http-request set-var(txn.country) src,map_ip(country.map)
     http-request unset-var(txn.country) if { var(txn.country) -m str ZZ }
-    # A route in a domain with no certificate is served over plain HTTP only. On HTTPS its host is
-    # unknown, so it gets 404, and never another domain's route.
+    # A route in a domain with no certificate is served over plain HTTP only. On HTTPS its host
+    # gets 404, and never another domain's route.
     acl plain_http_route var(txn.backend),map_str_int(plain-http.map) -m found
-    http-request unset-var(txn.backend) if { ssl_fc } plain_http_route
+    http-request set-var(txn.backend) str(be_not_found) if { ssl_fc } plain_http_route
     # A redirect route's entry is "<code>|<keep path>|<target>".
     http-request set-var(txn.redirect) var(txn.backend),map(redirect.map)
     acl redirect_host var(txn.redirect) -m found
     http-request redirect location https://%[req.hdr(host),host_only]{% if not default_https_port %}:{{ https_port | number }}{% endif %}%[pathq] code 301 if !{ ssl_fc } !redirect_host !plain_http_route { var(txn.host) -m found }
     http-request deny deny_status 400 if !{ ssl_fc } !redirect_host !plain_http_route
-    http-request set-var(txn.route) var(txn.backend),regsub(^{{ backend_prefix | token }},)
+    http-request set-var(txn.route) var(txn.backend),regsub(^{{ backend_prefix | token }},) if { var(txn.backend) -m beg {{ backend_prefix | token }} }
 {% if sni_layer %}
     # A browser may reuse a connection for another host that the certificate covers. A passthrough
     # host belongs to its own server, so 421 tells the browser to connect again.
@@ -156,9 +156,9 @@ frontend fe_https
     # Plain HTTP reaches only the backend of a route in a domain with no certificate. A redirect
     # host has answered above.
     http-request deny deny_status 400 if !{ ssl_fc } !plain_http_route
-    # An unknown host leaves the name empty, so the request goes to the default backend.
+    # A host that no route serves leaves the name empty, so the request goes to the default backend.
     use_backend %[var(txn.backend)]
-    default_backend be_not_found
+    default_backend be_unknown_host
 {% if crowdsec %}
 {% include "crowdsec-filter.cfg.j2" %}
 {% endif %}

@@ -14,7 +14,7 @@ from pydantic import BaseModel, Field
 from ruamel.yaml.comments import CommentedMap
 
 from homeproxy.api.changes import edit_lock
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
 from homeproxy.models import StrictModel
 from homeproxy.models.config import NotificationTarget
@@ -152,10 +152,10 @@ def test_target(name: str, runtime: Runtime) -> NotificationTestResult:
     what its receiver answered. It is sent once, with no retry."""
     target = next((t for t in _staged_targets(runtime.store) if t.name == name), None)
     if target is None:
-        raise AuthError(404, "target_not_found", "No notification target has this name.")
+        raise ApiError(404, "target_not_found", "No notification target has this name.")
     url = runtime.store.load_secrets().notifications.target_url(name)
     if not url:
-        raise AuthError(409, "url_not_set", "Set the target's URL first.")
+        raise ApiError(409, "url_not_set", "Set the target's URL first.")
     message = Message(
         "test",
         "Test message",
@@ -184,7 +184,7 @@ def test_heartbeat(runtime: Runtime) -> NotificationTestResult:
     on or not. It is sent once, with no retry."""
     url = runtime.store.load_secrets().notifications.heartbeat_url.get_secret_value()
     if not url:
-        raise AuthError(409, "url_not_set", "Set the heartbeat's ping URL first.")
+        raise ApiError(409, "url_not_set", "Set the heartbeat's ping URL first.")
     try:
         status = send_once(url)
     except NotifyError as error:

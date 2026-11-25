@@ -1,11 +1,11 @@
 <script setup lang="ts">
 /** Two lists: every country on the left, the blocked ones on the right. A click moves a country across. */
 const blocked = defineModel<string[]>({ required: true });
-/** Editing the list for every public route itself, so countries blocked there are not left out. */
-const props = defineProps<{ everyRoute?: boolean }>();
+/** The list stands alone (the global list itself, or a route list that replaces it), so globally blocked countries are not left out. */
+const props = defineProps<{ replaces?: boolean }>();
 const geoip = useGeoipCountries();
 const { countries, loaded, hasData, error } = geoip;
-const global = computed(() => (props.everyRoute ? [] : geoip.global.value));
+const global = computed(() => (props.replaces ? [] : geoip.global.value));
 const search = ref("");
 
 const available = computed(() => {

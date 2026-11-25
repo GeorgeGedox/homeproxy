@@ -8,7 +8,7 @@ from typing import Any
 import pytest
 
 from homeproxy.generator import GeneratorError, RouteError, render, write_release
-from homeproxy.generator.render import _ENVIRONMENT
+from homeproxy.generator.render import ENVIRONMENT
 from homeproxy.models import Config, HttpRoute, Route, parse_route
 from homeproxy.models.route import Upstream
 
@@ -292,9 +292,15 @@ def test_https_port_appears_in_the_redirect_only_when_not_the_default() -> None:
     assert "location https://%[req.hdr(host),host_only]:8444%[pathq] code 301" in custom
 
 
-def test_disabled_route_is_left_out() -> None:
-    release = render(make_config(), [make_route(enabled=False)])
-    assert release.files["hosts.map"] == ""
+def test_disabled_route_is_left_out_and_its_host_stays_known() -> None:
+    """Its host answers 404 as a known host, so the CrowdSec scenario does not count its visitors.
+    A host that an enabled route also serves keeps that route."""
+    off = make_route(enabled=False, hosts=["app.example.com", "both.example.com"])
+    release = render(make_config(), [off, make_route("both")])
+    assert release.files["hosts.map"] == (
+        "app.example.com be_not_found\nboth.example.com route-both\n"
+    )
+    assert "route-app" not in release.files["conf.d/20-backends.cfg"]
 
 
 @pytest.mark.parametrize(
@@ -339,7 +345,7 @@ def test_lan_range_that_skipped_its_model_never_reaches_the_output() -> None:
 
 
 def test_templates_write_every_value_through_a_filter() -> None:
-    template = _ENVIRONMENT.from_string("{{ value }}")
+    template = ENVIRONMENT.from_string("{{ value }}")
     with pytest.raises(TypeError):
         template.render(value="raw")
 

@@ -1,0 +1,51 @@
+name: Bug report
+description: Report something HomeProxy does wrong.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        For a security problem, do not use this form. Report it privately through a security advisory.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened
+      description: What you did, step by step, and what HomeProxy did.
+      placeholder: |
+        1. I added a route for app.example.com to 192.168.1.10:8080
+        2. I selected Apply
+        3. The apply failed with ...
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: HomeProxy version
+      description: The Overview page shows it, or the image tag in `HOMEPROXY_IMAGE`.
+      placeholder: 0.2.1
+    validations:
+      required: true
+  - type: textarea
+    id: install
+    attributes:
+      label: How you run it
+      description: The host OS and architecture, the Docker version, and changes to `compose.yaml`, such as the CrowdSec service.
+      placeholder: Debian 13 on amd64, Docker 29.1, compose.yaml with the CrowdSec service
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs
+      description: |
+        The output of `docker compose logs homeproxy` around the problem.
+        **Remove API tokens, passwords, keys and the setup token before you paste.**
+      render: text
+    validations:
+      required: false

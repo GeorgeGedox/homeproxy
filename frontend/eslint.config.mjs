@@ -19,7 +19,7 @@ export default tseslint.config(
     rules: { "no-undef": "off", "vue/multi-word-component-names": "off", complexity: ["error", 10] },
   },
   {
-    // AGENTS.md "Code style": split a file by responsibility before it reaches 500 lines.
+    // docs/code-style.md: split a file by responsibility before it reaches 500 lines.
     files: ["app/**/*.{ts,vue}"],
     rules: { "max-lines": ["error", { max: 500, skipBlankLines: true, skipComments: true }] },
   },

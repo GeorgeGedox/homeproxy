@@ -15,7 +15,7 @@ from homeproxy.haproxy.pipeline import ApplyResult, Pipeline
 from homeproxy.notify import sender
 from homeproxy.store import Store
 from tests.conftest import Receiver
-from tests.integration.api.conftest import CLOUDFLARE_TOKEN
+from tests.unit.api.conftest import CLOUDFLARE_TOKEN
 
 URLS = "/api/v1/notifications/urls"
 TARGETS = """\

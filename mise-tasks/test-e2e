@@ -3,7 +3,9 @@
 #MISE depends=["api-client", "image"]
 set -euo pipefail
 cd "${MISE_PROJECT_ROOT:?}/frontend"
-pnpm exec playwright install chromium
+# The headless shell is all the tests use. On CI, also install its system libraries: the arm64
+# runner has no Chrome to bring them. Locally that would need sudo, so it is skipped.
+pnpm exec playwright install --only-shell ${CI:+--with-deps} chromium
 # The mocked suite serves the dashboard the image ships, so it tests that build and does not make another.
 rm -rf .output/public && mkdir -p .output
 container=$(docker create "homeproxy:${COMPOSE_PROJECT_NAME:?COMPOSE_PROJECT_NAME is set by mise.toml}")

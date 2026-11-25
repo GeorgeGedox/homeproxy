@@ -55,7 +55,7 @@ cannot listen on dashboard.listen 192.168.1.10:8443: Cannot assign requested add
 
 On **Settings**, **Dashboard and password**, choose **Change password** and enter the current password and the new one. Every other session is signed out, and your own session stays open. A wrong current password counts toward the login limit above.
 
-The change is refused while there are pending changes: apply or discard them first. A pending `config.yaml` holds the old password hash, so applying it later would bring the old password back.
+The dashboard refuses the change while a change to `config.yaml` is pending, for example a settings, domain or DNS change. The pending copy of `config.yaml` holds the old password hash. If you apply that copy, the old password comes back. Apply or discard that change first. Other pending changes, such as a route, do not stop a password change.
 
 ## Settings
 
@@ -63,7 +63,7 @@ The Settings page edits the network, the internal DNS server, certificates (Let'
 
 An address or range in `network.lan_cidrs` that reaches outside the private ranges (RFC 1918, loopback, link-local and IPv6 unique local), such as `0.0.0.0/1`, is saved with a warning that names it, and every apply repeats the warning. Its clients count as LAN, so LAN-only routes and the dashboard answer them. A catch-all range (`0.0.0.0/0`, `::/0`) is refused.
 
-The dashboard address, the session length and the password are on their own page, **Dashboard and password**, the last entry in the Settings menu. The address and session length are saved to `config.yaml` at once, without an apply. While changes are staged the page says so and its Save waits, because the staged copy of `config.yaml` would undo the change at the next apply.
+The dashboard address, the session length and the password are on their own page, **Dashboard and password**, the last entry in the Settings menu. The address and session length are saved to `config.yaml` at once, without an apply. While a change to `config.yaml` is staged, the page tells you this and its Save waits. An apply of the staged copy of `config.yaml` would undo the change. A staged route does not stop the Save.
 
 The CrowdSec, captcha and MaxMind keys are write-only and saved at once: the page shows only whether each one is set. A set key stays visible, with **Clear**, even while its feature is off. Saving a key sets or replaces it in `secrets.yaml`, and saving it empty clears it. No key value is ever shown, logged or written to the audit log. See [CrowdSec](crowdsec.md) and [GeoIP](geoip.md).
 

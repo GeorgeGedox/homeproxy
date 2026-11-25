@@ -29,6 +29,7 @@ export interface DomainFormState {
   proxied: boolean;
 }
 
+/** The form state of a new domain. */
 export const blankDomainForm = (): DomainFormState => ({
   zone: "", https: "none", provider: "", stored: "", credentials: "", token: "", env: {}, replacing: false,
   wildcard: true, ddnsName: "", ddnsUpdate: true, proxied: true,

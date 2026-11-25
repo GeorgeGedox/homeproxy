@@ -166,6 +166,7 @@ NotificationEvent = Literal[
     "apply_failed",
     "route_down",
     "bouncer_down",
+    "appsec_down",
     "ddns_failed",
     "geoip_failed",
     "new_version",

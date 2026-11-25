@@ -94,10 +94,12 @@ class RouteDns(StrictModel):
 
 
 class RouteGeoip(StrictModel):
-    """Countries blocked on this route, added to the global list. While `enabled` is false the list
-    is kept but blocks nothing."""
+    """Countries blocked on this route. With `mode` "add" they join the global list. With "replace"
+    they are the only countries blocked, so an empty list opens the route to every country. While
+    `enabled` is false the list is kept but ignored, and the global list applies."""
 
     enabled: bool = True
+    mode: Literal["add", "replace"] = "add"
     block_countries: list[CountryCode] = Field(default_factory=list)
 
 

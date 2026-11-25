@@ -18,7 +18,7 @@ const key = (line: LogLine) => line.line + line.logged_at;
 
 /** The live access log: filters, Pause and Resume, and why the API refused the filters. */
 export function useLogTail() {
-  const filters = reactive({ route: "", status: "", client: "", country: "" });
+  const filters = reactive({ route: "", status: "", client: "", country: "", network: "" });
   const lines = ref<LogLine[]>([]);
   /** Lines that arrived while paused, newest first. */
   const held = ref<LogLine[]>([]);
@@ -74,10 +74,10 @@ export function useLogTail() {
     held.value = [];
     paused.value = false;
   }
-  const clear = () => Object.assign(filters, { route: "", status: "", client: "", country: "" });
+  const clear = () => Object.assign(filters, { route: "", status: "", client: "", country: "", network: "" });
 
   // Text filters change on Enter or when the field is left, so a half-typed value never opens a stream.
-  // The watcher runs once per tick, so the four fields a Clear empties open one stream.
+  // The watcher runs once per tick, so the five fields a Clear empties open one stream.
   watch(filters, () => connect());
   onMounted(connect);
   onBeforeUnmount(() => source?.close());

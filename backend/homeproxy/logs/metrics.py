@@ -65,7 +65,8 @@ class SeriesPoint:
     """Requests in one bucket that starts at `at`.
 
     `group` is the route, country code or status the point counts, or None when the series is
-    not grouped or the line had no value, such as a TCP line's status.
+    not grouped or the line had no value, such as a TCP line's status. A LAN client counts as
+    the country `LAN`. Rows from before that change stay with the unknown country.
     """
 
     at: datetime

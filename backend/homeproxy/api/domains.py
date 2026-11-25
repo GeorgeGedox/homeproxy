@@ -17,7 +17,7 @@ from ruamel.yaml.comments import CommentedMap
 
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError, not_found
 from homeproxy.auth.routes import Runtime
 from homeproxy.certs.errors import TokenError
 from homeproxy.certs.providers import CLOUDFLARE, SELF_SIGNED, LegoProvider, catalog, check_paths
@@ -73,10 +73,6 @@ class DomainInput(DomainView):
         return self
 
 
-def _not_found() -> AuthError:
-    return AuthError(404, "domain_not_found", "No domain has this zone.")
-
-
 def _stored_token(store: Store, body: DomainInput, name: str) -> SecretStr | None:
     """Return the stored Cloudflare token, after checking that the credentials stored under
     `name` fit the body."""
@@ -84,10 +80,10 @@ def _stored_token(store: Store, body: DomainInput, name: str) -> SecretStr | Non
     if credential is None:
         field = "api_token" if body.dns_provider == CLOUDFLARE else "env"
         message = "No credentials are stored under this name."
-        raise AuthError(422, "credentials_required", message, field=field)
+        raise ApiError(422, "credentials_required", message, field=field)
     if credential.provider != body.dns_provider:
         message = f"These credentials are for {credential.provider}."
-        raise AuthError(422, "credentials_provider", message, field="credentials")
+        raise ApiError(422, "credentials_provider", message, field="credentials")
     return credential.api_token
 
 
@@ -102,7 +98,7 @@ def _shared_zones(store: Store, body: DomainInput) -> list[str]:
     ]
     if any(d.dns_provider != body.dns_provider for d in users):
         message = "Choose a new credentials name when you switch providers."
-        raise AuthError(422, "credentials_in_use", message, field="credentials")
+        raise ApiError(422, "credentials_in_use", message, field="credentials")
     return [d.zone for d in pending if d.credentials == body.credentials and d.zone != body.zone]
 
 
@@ -130,14 +126,14 @@ def check_credential_values(
     try:
         check_paths({k: v.get_secret_value() for k, v in env.items()}, store.secrets_dir)
     except ValueError as error:
-        raise AuthError(422, "path_outside_secrets", str(error), field="env") from None
+        raise ApiError(422, "path_outside_secrets", str(error), field="env") from None
     if token is None or services.certificates.lego is None:
         return  # Other providers are checked by the first issuance. Self-signed mode is offline.
     for zone in zones:
         try:
             check_token(zone, token.get_secret_value())
         except TokenError as error:
-            raise AuthError(400, "invalid_token", str(error), field="api_token") from None
+            raise ApiError(400, "invalid_token", str(error), field="api_token") from None
 
 
 def _store_credentials(store: Store, body: DomainInput, held: HeldLock) -> None:
@@ -167,7 +163,7 @@ def _config_tree(store: Store, held: HeldLock) -> tuple[CommentedMap, list[Domai
 def _index(domains: list[Domain], zone: str) -> int:
     index = next((i for i, domain in enumerate(domains) if domain.zone == zone), None)
     if index is None:
-        raise _not_found()
+        raise not_found("domain", "zone")
     return index
 
 
@@ -205,7 +201,7 @@ def create_domain(body: DomainInput, runtime: Runtime, services: ServicesDep) ->
     with edit_lock(store) as held:
         tree, domains = _config_tree(store, held)
         if any(existing.zone == domain.zone for existing in domains):
-            raise AuthError(409, "domain_exists", "This zone is configured already.", field="zone")
+            raise ApiError(409, "domain_exists", "This zone is configured already.", field="zone")
         tree.setdefault("domains", []).append(domain.model_dump(mode="json", exclude_defaults=True))
         PendingChanges(store).stage_tree(CONFIG_FILE, tree, held)
         _store_credentials(store, body, held)
@@ -219,7 +215,7 @@ def update_domain(
     """Check the credentials, then stage the changed domain. The zone cannot change."""
     store = runtime.store
     if body.zone != zone:
-        raise AuthError(422, "zone_changed", "Add a new domain to use another zone.", field="zone")
+        raise ApiError(422, "zone_changed", "Add a new domain to use another zone.", field="zone")
     _check_credentials(services, store, body)
     domain = _domain(body)
     with edit_lock(store) as held:
@@ -262,7 +258,7 @@ def delete_domain(zone: str, runtime: Runtime) -> Response:
         index = _index(domains, zone)
         users = _routes_using(pending.load_overlay(held), zone)
         if users:
-            raise AuthError(409, "domain_in_use", f"Routes use this domain: {', '.join(users)}.")
+            raise ApiError(409, "domain_in_use", f"Routes use this domain: {', '.join(users)}.")
         del tree["domains"][index]
         pending.stage_tree(CONFIG_FILE, tree, held)
     return Response(status_code=204)

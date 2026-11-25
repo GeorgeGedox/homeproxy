@@ -1,8 +1,11 @@
 <script setup lang="ts">
 import type { components } from "~~/api/schema";
 
+type CheckResult = components["schemas"]["CheckResult"];
+
 const crowdsec = defineModel<components["schemas"]["Crowdsec"]>({ required: true });
-const { state } = useBouncerState();
+const api = useApi();
+const { state, appsec } = useBouncerState();
 const { isSet } = useSettingsKeys();
 // A set key shows even while captcha is off, so it can be seen and cleared.
 const captcha = computed(() => crowdsec.value.captcha_provider !== "none" || ["captcha_site_key", "captcha_secret_key", "captcha_signing_key"].some((key) => isSet("crowdsec", key)));
@@ -12,7 +15,26 @@ const bouncer = computed(() => {
   if (state.value === "down") return { color: "error", label: "Bouncer down", hint: "Requests are served without CrowdSec checks. Check the CrowdSec API URL and the bouncer key." } as const;
   return null;
 });
+const appsecBadge = computed(() => {
+  if (appsec.value === "up") return { color: "success", label: "AppSec up" } as const;
+  if (appsec.value === "down") return { color: "error", label: "AppSec down" } as const;
+  return null;
+});
 const STOPS = "CrowdSec protection stops at the next apply.";
+
+const checks = ref<CheckResult[]>([]);
+const checkError = ref("");
+const checking = ref(false);
+const CHECK_ICONS = { true: "lucide:circle-check", false: "lucide:circle-x", null: "lucide:circle-minus" } as const;
+
+/** Test the applied settings and the saved keys, one line for each part of CrowdSec. */
+async function testConnection(): Promise<void> {
+  checking.value = true;
+  const { data, error } = await api.POST("/api/v1/security/crowdsec/check");
+  checks.value = data ?? [];
+  checkError.value = data ? "" : apiErrorMessage(error, "The connection test did not run.");
+  checking.value = false;
+}
 // A key only matters while the feature that uses it is on, so only then does clearing it need a warning.
 const needs = (what: string) => (crowdsec.value.enabled ? `${what} ${STOPS}` : undefined);
 </script>
@@ -22,8 +44,23 @@ const needs = (what: string) => (crowdsec.value.enabled ? `${what} ${STOPS}` : u
     <div class="flex flex-wrap items-center gap-3">
       <USwitch v-model="crowdsec.enabled" label="CrowdSec" />
       <UBadge v-if="bouncer" :color="bouncer.color" variant="subtle" :label="bouncer.label" data-testid="bouncer-state" />
+      <UBadge v-if="appsecBadge" :color="appsecBadge.color" variant="subtle" :label="appsecBadge.label" />
     </div>
     <p v-if="bouncer?.hint" class="text-sm text-muted">{{ bouncer.hint }}</p>
+    <p v-if="appsec === 'down'" class="text-sm text-muted">AppSec does not check requests, so they pass without it. Check the AppSec URL and the bouncer key.</p>
+    <div class="space-y-2">
+      <div class="flex flex-wrap items-center gap-3">
+        <UButton label="Test connection" color="neutral" variant="outline" :loading="checking" @click="testConnection" />
+        <span class="text-xs text-muted">Tests the applied settings and the saved keys.</span>
+      </div>
+      <p v-if="checkError" class="text-sm text-error">{{ checkError }}</p>
+      <ul v-if="checks.length" class="space-y-1 text-sm" aria-label="Connection test">
+        <li v-for="check in checks" :key="check.part" class="flex items-start gap-2">
+          <UIcon :name="CHECK_ICONS[`${check.ok}`]" class="mt-0.5 size-4 shrink-0" :class="check.ok ? 'text-success' : check.ok === false ? 'text-error' : 'text-muted'" />
+          {{ check.message }}
+        </li>
+      </ul>
+    </div>
     <template v-if="crowdsec.enabled">
       <UFormField label="CrowdSec API URL" name="crowdsec.lapi_url" help="The engine's LAPI. The bouncer syncs its decisions from it every 10 seconds, and Security lists them."><UInput :model-value="crowdsec.lapi_url ?? ''" placeholder="http://127.0.0.1:18080" class="w-full" @update:model-value="crowdsec.lapi_url = $event || null" /></UFormField>
       <UFormField label="CrowdSec syslog address" name="crowdsec.syslog" hint="ip:port" help="Where HAProxy sends its access log for the engine to read."><UInput :model-value="crowdsec.syslog ?? ''" placeholder="127.0.0.1:15140" class="w-full" @update:model-value="crowdsec.syslog = $event || null" /></UFormField>

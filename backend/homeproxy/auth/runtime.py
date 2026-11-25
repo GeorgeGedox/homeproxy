@@ -151,6 +151,11 @@ class AuthRuntime:
             return private_policy()
         return lan_policy(current.lan_cidrs)
 
+    def is_lan(self, address: str) -> bool:
+        """Whether a client address is in `network.lan_cidrs` as the file says now. Before setup,
+        the private ranges count as LAN."""
+        return self.source_policy().allows(address)
+
     # Sessions --------------------------------------------------------------------------------
 
     def login(self, peer: str, password: str) -> tuple[str, int]:

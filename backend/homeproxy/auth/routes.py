@@ -4,11 +4,10 @@
 `AuthRuntime.setup_claim` and `hash_password` from this package.
 """
 
-import json
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Request, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, ValidationError
 from starlette.concurrency import run_in_threadpool
 
 from homeproxy.auth import errors
@@ -17,6 +16,7 @@ from homeproxy.auth.passwords import MAX_LENGTH
 from homeproxy.auth.runtime import AuthRuntime, get_runtime
 from homeproxy.auth.sessions import COOKIE_NAME, Session
 from homeproxy.auth.setup_detection import DetectedSetup, detect_host_setup, taken_ports
+from homeproxy.models import StrictModel
 
 router = APIRouter(prefix="/api/v1", tags=["auth"])
 
@@ -59,10 +59,10 @@ class SetupStatus(BaseModel):
     needs: list[str] | None = None
 
 
-class LoginRequest(BaseModel):
+class LoginRequest(StrictModel):
     """The dashboard password."""
 
-    password: str
+    password: str = Field(min_length=1, max_length=MAX_LENGTH)
 
 
 class Me(BaseModel):
@@ -97,13 +97,9 @@ async def _read_password(request: Request) -> str:
     if len(body) > _MAX_BODY:
         raise invalid
     try:
-        data = json.loads(body)
-    except ValueError:
+        return LoginRequest.model_validate_json(body).password
+    except ValidationError:
         raise invalid from None
-    password = data.get("password") if isinstance(data, dict) else None
-    if not isinstance(password, str) or not password or len(password) > MAX_LENGTH:
-        raise invalid
-    return password
 
 
 def set_session_cookie(response: Response, value: str, ttl: int) -> None:

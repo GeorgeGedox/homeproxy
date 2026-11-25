@@ -1,8 +1,8 @@
-"""Validation failures in the API's error shape, with no input values and no input keys.
+"""The API's errors, in its error shape: `{"error": {"code", "message", "field"}}`.
 
-FastAPI's default handler for a bad request body returns the input, and the input can be a
-password or a token. Its error locations can also hold a secret pasted into a key position. So
-both handlers here pass every error through `safe_errors` first.
+A handler raises `ApiError`. FastAPI's default handler for a bad request body returns the input,
+and the input can be a password or a token. Its error locations can also hold a secret pasted into
+a key position. So both validation handlers here pass every error through `safe_errors` first.
 """
 
 import logging
@@ -22,6 +22,30 @@ from homeproxy.store.errors import StoreError, ValidationFailed
 from homeproxy.store.lock import LockTimeout
 
 logger = logging.getLogger(__name__)
+
+
+class ApiError(Exception):
+    """A request the API refuses. The message is safe to show and holds no secret."""
+
+    def __init__(self, status: int, code: str, message: str, *, field: str | None = None) -> None:
+        """Describe the refusal: HTTP status, a stable code, a message and the form field."""
+        super().__init__(message)
+        self.status = status
+        self.code = code
+        self.message = message
+        self.field = field
+
+
+def not_found(kind: str, key: str) -> ApiError:
+    """Return 404 for a `kind` of object, such as a route, that has no such `key`."""
+    return ApiError(404, f"{kind}_not_found", f"No {kind} has this {key}.")
+
+
+def changes_pending() -> ApiError:
+    """Return 409 for a change saved at once to `config.yaml` while a staged copy waits for an
+    apply, which would undo it."""
+    message = "Apply or discard the pending change to config.yaml first."
+    return ApiError(409, "changes_pending", message)
 
 
 _ROUTE_TYPES = frozenset({"http", "passthrough", "tcp", "redirect"})
@@ -85,6 +109,14 @@ async def request_validation_handler(request: Request, error: Exception) -> JSON
     return validation_response(errors)
 
 
+async def api_error_handler(request: Request, error: Exception) -> JSONResponse:
+    """FastAPI handler for `ApiError`."""
+    if not isinstance(error, ApiError):  # pragma: no cover - registered for ApiError only
+        raise error
+    body = error_body(error.code, error.message, error.field)
+    return JSONResponse(body, status_code=error.status)
+
+
 async def store_error_handler(request: Request, error: Exception) -> JSONResponse:
     """FastAPI handler for store errors. Their text never holds file content."""
     if isinstance(error, ValidationFailed):
@@ -95,6 +127,7 @@ async def store_error_handler(request: Request, error: Exception) -> JSONRespons
 
 
 def install_error_handlers(app: FastAPI) -> None:
-    """Replace FastAPI's validation handler and answer store errors in the API's error shape."""
+    """Replace FastAPI's validation handler and answer API and store errors in the API's shape."""
+    app.add_exception_handler(ApiError, api_error_handler)
     app.add_exception_handler(RequestValidationError, request_validation_handler)
     app.add_exception_handler(StoreError, store_error_handler)

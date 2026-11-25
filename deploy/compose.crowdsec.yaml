@@ -28,6 +28,8 @@ services:
         target: /etc/crowdsec/acquis.d/haproxy.yaml
       - source: crowdsec_appsec
         target: /etc/crowdsec/acquis.d/appsec.yaml
+      - source: crowdsec_unknown_host
+        target: /etc/crowdsec/scenarios/homeproxy-unknown-host.yaml
     ports:
       - "127.0.0.1:18080:8080"      # LAPI, for crowdsec.lapi_url
       - "127.0.0.1:15140:514/udp"   # syslog acquisition, for crowdsec.syslog
@@ -47,6 +49,29 @@ configs:
       max_message_len: 4096
       labels:
         type: syslog
+  crowdsec_unknown_host:
+    content: |
+      # HomeProxy answers a host that no route serves from its be_unknown_host backend. Real
+      # visitors never ask for one, but scanners ask for the bare IP, a random name or no name.
+      # The second such request in about 10 minutes bans the client. A browser can also ask for
+      # /favicon.ico after the page, so that request does not count.
+      type: leaky
+      name: homeproxy/unknown-host
+      description: "Ban a client that asks twice for a host that HomeProxy does not serve"
+      filter: "evt.Meta.log_type == 'http_access-log' && evt.Parsed.backend_name == 'be_unknown_host' && evt.Meta.http_path != '/favicon.ico'"
+      groupby: evt.Meta.source_ip
+      capacity: 1
+      leakspeed: 10m
+      blackhole: 1m
+      labels:
+        service: http
+        confidence: 3
+        spoofable: 0
+        classification:
+          - attack.T1595
+        behavior: "http:scan"
+        label: "Request for an unknown host"
+        remediation: true
   crowdsec_appsec:
     content: |
       source: appsec

@@ -9,7 +9,6 @@ import os
 import re
 import ssl
 import subprocess
-import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -18,6 +17,7 @@ from typing import Any
 import httpx2
 import pytest
 
+from tests.conftest import NOWHERE, wait_until
 from tests.integration.haproxy_live import docker
 
 PORT = 8443
@@ -53,18 +53,22 @@ class Server:
 
         The first start creates the certificate, which is then the only one trusted.
         """
-        deadline = time.monotonic() + TIMEOUT
-        while time.monotonic() < deadline:
-            if self.logs().count("dashboard listening on") >= count:
-                if self.verify is True:
-                    self.trust_certificate()
-                try:
-                    if self.call("GET", "/api/v1/healthz").status_code == 200:
-                        return
-                except httpx2.TransportError:
-                    pass
-            time.sleep(1.0)
-        pytest.fail(f"the API did not start a {count}. time\n{self.logs()[-4000:]}")
+
+        def started() -> bool:
+            if self.logs().count("dashboard listening on") < count:
+                return False
+            if self.verify is True:
+                self.trust_certificate()
+            return self.call("GET", "/api/v1/healthz").status_code == 200
+
+        wait_until(
+            started,
+            f"the API to start a {count}. time",
+            timeout=TIMEOUT,
+            interval=1.0,
+            not_yet=(httpx2.TransportError,),
+            details=lambda: self.logs()[-4000:],
+        )
 
     def trust_certificate(self) -> None:
         """Trust only the dashboard certificate, read from the container without its key."""
@@ -86,10 +90,10 @@ def start_server(name: str, *env: str) -> Iterator[Server]:
     # Data sources point nowhere, so no job, such as setup's GeoIP download, calls the internet.
     settings = [
         f"HOMEPROXY_BOOTSTRAP_LISTEN=0.0.0.0:{PORT}",
-        "HOMEPROXY_CF_RANGES_URL=http://127.0.0.1:9",
-        "HOMEPROXY_RELEASES_URL=http://127.0.0.1:9/",
-        "HOMEPROXY_GEOIP_URL=http://127.0.0.1:9",
-        "HOMEPROXY_UPDATE_URL=http://127.0.0.1:9",
+        f"HOMEPROXY_CF_RANGES_URL={NOWHERE}",
+        f"HOMEPROXY_RELEASES_URL={NOWHERE}/",
+        f"HOMEPROXY_GEOIP_URL={NOWHERE}",
+        f"HOMEPROXY_UPDATE_URL={NOWHERE}",
         *env,
     ]
     try:
@@ -120,11 +124,12 @@ def start_server(name: str, *env: str) -> Iterator[Server]:
 def check_detected_values(server: Server) -> None:
     """The setup status reports the container's own subnet and address on the bridge network.
     The placeholder page holds port 80, and the status does not count it as taken."""
-    deadline = time.monotonic() + TIMEOUT
-    while not placeholder_answers(server.ip):
-        if time.monotonic() > deadline:
-            pytest.fail("the placeholder page never answered")
-        time.sleep(0.5)
+    wait_until(
+        lambda: placeholder_answers(server.ip),
+        "the placeholder page to answer",
+        timeout=TIMEOUT,
+        interval=0.5,
+    )
     prefix = docker(
         "inspect", "-f", "{{range .NetworkSettings.Networks}}{{.IPPrefixLen}}{{end}}", server.name
     )

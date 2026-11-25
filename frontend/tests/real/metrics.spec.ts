@@ -19,7 +19,10 @@ test("requests through HAProxy show in the total, by site and by status, and one
     await expect(site).toBeVisible({ timeout: 1000 });
   }).toPass({ timeout: 30_000 });
   await expect(page.getByRole("region", { name: "Status codes" }).getByRole("button", { name: "Show 200 over time" })).toBeVisible();
-  await expect(page.getByRole("region", { name: "Countries" })).toContainText("Unknown");
+  // The real stack's clients are all on the LAN, so they count as LAN and not as Unknown.
+  const countries = page.getByRole("region", { name: "Countries" });
+  await expect(countries.getByRole("button", { name: "Show LAN over time" })).toBeVisible();
+  await expect(countries.getByRole("button", { name: "Show Unknown over time" })).toBeHidden();
 
   await site.click();
   await expect(page.getByRole("heading", { name: "Requests to app.example.info" })).toBeVisible();

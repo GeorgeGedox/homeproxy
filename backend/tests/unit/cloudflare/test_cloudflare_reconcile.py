@@ -12,7 +12,14 @@ from typing import Any
 
 import pytest
 
-from homeproxy.cloudflare import Change, Conflict, ReconcileError, purge, reconcile_store
+from homeproxy.cloudflare import (
+    Change,
+    Conflict,
+    ReconcileError,
+    adopt_host,
+    purge,
+    reconcile_store,
+)
 from homeproxy.crowdsec import add_to_allowlist
 from homeproxy.haproxy.client import HAProxyClient
 from homeproxy.store import Store, load_tree, write_tree
@@ -168,6 +175,108 @@ def test_hand_made_records_are_never_touched(cloudflare: FakeCloudflare, store: 
     ]
     assert {zone: dict(cloudflare.zone(zone)) for zone in EXPECTED} == before
     assert not [call for call in cloudflare.writes() if call.rsplit("/", 1)[1] in hand_made]
+
+
+@pytest.mark.parametrize("kind", ["A", "AAAA"])
+def test_adopting_an_address_record_is_replaced_by_the_cname_on_the_next_reconcile(
+    cloudflare: FakeCloudflare, store: Store, kind: str
+) -> None:
+    host = "jellyfin.example.com"
+    mine = cloudflare.add("example.com", host, "my own", content="192.168.1.20", type=kind)
+
+    route = adopt_host(store.load_config(), store.load_routes(), store.load_secrets(), host)
+
+    assert route == "jellyfin"
+    assert cloudflare.writes() == [f"PUT /zones/id-example.com/dns_records/{mine}"]
+    record = cloudflare.zone("example.com")[mine]
+    assert (record["type"], record["content"]) == (kind, "192.168.1.20")
+    assert record["comment"] == "managed-by:homeproxy route:jellyfin"
+    cloudflare.calls.clear()
+
+    results = reconcile_store(store)
+
+    assert results[0].errors == []
+    assert [c.action for c in results[0].changes if c.name == host] == ["delete", "create"]
+    writes = cloudflare.writes()
+    assert writes[0] == f"DELETE /zones/id-example.com/dns_records/{mine}"
+    assert [w for w in writes if w.startswith("DELETE")] == writes[:1]
+    assert not [w for w in writes if w.startswith("PUT")]
+    assert state(cloudflare, "example.com")[host] == (
+        "home.example.com", True, "managed-by:homeproxy route:jellyfin",
+    )  # fmt: skip
+    assert [r["type"] for r in cloudflare.zone("example.com").values() if r["name"] == host] == [
+        "CNAME"
+    ]
+
+
+def test_adopting_a_cname_is_updated_in_place_without_a_gap(
+    cloudflare: FakeCloudflare, store: Store
+) -> None:
+    host = "jellyfin.example.com"
+    mine = cloudflare.add("example.com", host, "my own", content="other.example.org")
+    adopt_host(store.load_config(), store.load_routes(), store.load_secrets(), host)
+    cloudflare.calls.clear()
+
+    results = reconcile_store(store)
+
+    assert results[0].errors == []
+    assert not [w for w in cloudflare.writes() if w.startswith("DELETE")]
+    assert cloudflare.zone("example.com")[mine]["content"] == "home.example.com"
+
+
+@pytest.mark.parametrize(
+    ("existing", "host", "message"),
+    [
+        pytest.param([], "jellyfin.example.com", "no record", id="no-record"),
+        pytest.param(
+            [("A", "mine"), ("A", "mine too")],
+            "jellyfin.example.com",
+            "2 records",
+            id="two-hand-made",
+        ),
+        pytest.param(
+            [("A", "mine"), ("CNAME", "managed-by:homeproxy route:jellyfin")],
+            "jellyfin.example.com",
+            "2 records",
+            id="hand-made-next-to-owned",
+        ),
+        pytest.param(
+            [("CNAME", "managed-by:homeproxy route:jellyfin")],
+            "jellyfin.example.com",
+            "already",
+            id="already-owned",
+        ),
+        pytest.param(
+            [("A", "managed-by:homeproxy ddns:example.com")],
+            "jellyfin.example.com",
+            "already",
+            id="ddns-owned",
+        ),
+        pytest.param([("TXT", "mine")], "jellyfin.example.com", "TXT", id="record-type"),
+        pytest.param(
+            [("A", "mine")], "nas.example.com", "no applied public route", id="no-route-wants-it"
+        ),
+        pytest.param(
+            [("A", "mine")], "git.example.org", "no applied public route", id="outside-domains"
+        ),
+    ],
+)
+def test_adopt_refuses_unless_one_hand_made_record_sits_on_a_route_host(
+    cloudflare: FakeCloudflare,
+    store: Store,
+    existing: list[tuple[str, str]],
+    host: str,
+    message: str,
+) -> None:
+    for kind, comment in existing:
+        cloudflare.add("example.com", host, comment, type=kind, content="192.168.1.20")
+    before = dict(cloudflare.zone("example.com"))
+
+    with pytest.raises(ReconcileError, match=message):
+        adopt_host(store.load_config(), store.load_routes(), store.load_secrets(), host)
+
+    assert cloudflare.writes() == []
+    assert cloudflare.zone("example.com") == before
 
 
 def test_nested_domain_keeps_the_record_in_the_parent_zone(

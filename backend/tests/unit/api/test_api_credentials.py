@@ -7,7 +7,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from homeproxy.store import Store
-from tests.integration.api.conftest import CLOUDFLARE_TOKEN
+from tests.unit.api.conftest import CLOUDFLARE_TOKEN
 
 CREDENTIALS = "/api/v1/credentials"
 SHORT_KEY = "abc123"

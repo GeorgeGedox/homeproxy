@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test } from "./fixtures";
 
 // The normal flows (stage, details, apply, discard) run in tests/real. These are the states a real
 // stack does not reach through its UI: a release haproxy -c refuses, and files edited on disk.
@@ -9,7 +9,6 @@ type Start = "staged" | "hand-edit" | "broken" | "conflict";
 async function mockApi(page: Page, failFirst: boolean, start: Start = "staged") {
   let pending = start === "staged" || start === "conflict";
   let applies = 0;
-  const json = (status: number, body?: unknown) => ({ status, contentType: "application/json", body: body === undefined ? "" : JSON.stringify(body) });
   const review = () => ({
     changes: pending ? [{ path: "routes/app.yaml", kind: "write" }] : [],
     summary: pending ? [{ kind: "route", action: "added", label: "app.example.com" }] : [],
@@ -24,19 +23,18 @@ async function mockApi(page: Page, failFirst: boolean, start: Start = "staged") 
     "/auth/me": { authenticated: true },
     "/settings": { cloudflare: { enabled: false } },
   };
-  await page.route("**/api/v1/**", (route) => {
-    const path = new URL(route.request().url()).pathname.replace("/api/v1", "");
-    if (path in fixed) return route.fulfill(json(200, fixed[path]));
-    if (path === "/changes") return route.fulfill(json(200, review()));
-    if (path !== "/apply") return route.fulfill(json(404, {}));
+  await routeApi(page, (_, path) => {
+    if (path in fixed) return [200, fixed[path]];
+    if (path === "/changes") return [200, review()];
+    if (path !== "/apply") return undefined;
     applies += 1;
     if (failFirst && applies === 1) {
       const errors = ["haproxy -c refused the new release"];
       const haproxy_log = "[NOTICE]   (1) : haproxy version is 3.2\n[ALERT]    (1) : config : parsing [/x/includes/bad.cfg:2] : unknown keyword 'bogus' in 'frontend' section\n";
-      return route.fulfill(json(200, { success: false, stage: "check", errors, haproxy_log, warnings: [], certificate_jobs: [] }));
+      return [200, { success: false, stage: "check", errors, haproxy_log, warnings: [], certificate_jobs: [] }];
     }
     pending = false;
-    return route.fulfill(json(200, { success: true, stage: "done", errors: [], haproxy_log: "", warnings: [], certificate_jobs: [] }));
+    return [200, { success: true, stage: "done", errors: [], haproxy_log: "", warnings: [], certificate_jobs: [] }];
   });
 }
 

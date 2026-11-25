@@ -1,27 +1,34 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test } from "./fixtures";
 
 const soon = new Date(Date.now() + 3 * 3600_000).toISOString();
-const decision = (id: number, value: string, origin: string) => ({ id, value, origin, type: "ban", scope: "Ip", scenario: "crowdsecurity/ssh-bf", expires_at: soon });
+const pulled = new Date(Date.now() - 2 * 3600_000).toISOString();
+const decision = (id: number, value: string, origin: string) => ({ id, value, origin, type: "ban", scope: "Ip", scenario: "crowdsecurity/ssh-bf", expires_at: soon, created_at: pulled });
 const geoip = { provider: "dbip-lite", block_countries: [], data: null, attribution: { text: "IP Geolocation by DB-IP", url: "https://db-ip.com" } };
 
 // A real stack has no CrowdSec LAPI and no internet for GeoIP, so these run against a mock.
 
 /** The Security page's API with CrowdSec on: `extra` replies win, keyed "METHOD /path". */
 async function mockSecurity(page: Page, extra: Record<string, (body: unknown) => unknown> = {}) {
-  await page.route("**/api/v1/**", (request) => {
-    const req = request.request();
-    const path = new URL(req.url()).pathname.replace("/api/v1", "");
-    const key = `${req.method()} ${path}`;
+  await routeApi(page, (method, path, body) => {
+    const key = `${method} ${path}`;
     const defaults: Record<string, unknown> = {
       "GET /auth/me": { authenticated: true }, "GET /security/allowlist": [], "GET /geoip": geoip, "GET /jobs": [],
       "GET /changes": { changes: [], summary: [] }, "GET /status": { bouncer: "up" },
     };
     const handler = extra[key];
-    const reply = handler ? handler(req.postDataJSON()) : defaults[key];
-    return request.fulfill({ status: reply === undefined ? 404 : 200, contentType: "application/json", body: reply === null ? "" : JSON.stringify(reply ?? {}) });
+    const reply = handler ? handler(body) : defaults[key];
+    // A null reply is an empty 200.
+    return reply === undefined ? undefined : [200, reply ?? undefined];
   });
 }
+
+test("with no blocklist decisions, the blocklist line says 0 and links to console enrollment", async ({ page }) => {
+  await mockSecurity(page, { "GET /security/decisions": () => [decision(1, "203.0.113.7", "crowdsec")] });
+  await page.goto("/security");
+  await expect(page.getByText("Blocklists: 0 decisions", { exact: true })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Enroll the engine in the CrowdSec console" })).toHaveAttribute("href", "https://app.crowdsec.net");
+});
 
 test("blocklist decisions are hidden until asked for, and unbanning one offers the allowlist", async ({ page }) => {
   let decisions = [decision(1, "203.0.113.7", "crowdsec"), decision(2, "198.51.100.9", "CAPI")];
@@ -37,6 +44,7 @@ test("blocklist decisions are hidden until asked for, and unbanning one offers t
   const list = page.getByRole("list", { name: "Decisions" });
   await expect(list).toContainText("203.0.113.7");
   await expect(list).not.toContainText("198.51.100.9");
+  await expect(page.getByText("Blocklists: 1 decision, updated 2 hours ago")).toBeVisible();
 
   await page.getByRole("button", { name: "Unban 203.0.113.7" }).click();
   await expect.poll(() => calls).toEqual(["delete 1"]);

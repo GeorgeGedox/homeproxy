@@ -1,4 +1,4 @@
-"""Fixtures that run generated files through a real `haproxy:3.4`, in a container.
+"""Fixtures that run generated files through the Dockerfile's pinned HAProxy, in a container.
 
 These tests need Docker. Without it they fail and do not skip, because `haproxy -c` on every golden
 case is a required gate.
@@ -20,8 +20,10 @@ from tests.golden.live_proxy import (
     running_proxy,
     wait_for_log,
 )
+from tests.integration.haproxy_live import haproxy_image as pinned_haproxy_image
 
-HAPROXY_IMAGE = "haproxy:3.4"
+# The pinned image, so a Renovate HAProxy PR runs every golden case on the new version.
+HAPROXY_IMAGE = pinned_haproxy_image()
 # The first run may have to pull the image.
 DOCKER_TIMEOUT = 300.0
 

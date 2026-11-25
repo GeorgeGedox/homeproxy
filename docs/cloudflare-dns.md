@@ -16,7 +16,7 @@ HomeProxy marks the records it owns in the Cloudflare record comment:
 | Route record | `managed-by:homeproxy route:<route name>` |
 | DDNS record | `managed-by:homeproxy ddns:<zone>` |
 
-HomeProxy changes or deletes only records with the exact marker. A record you made by hand is never touched, even when a route uses the same name. The Cloudflare page shows that host as a conflict. To let HomeProxy manage the name, delete your record in Cloudflare and select **Sync now**.
+HomeProxy changes or deletes only records with the exact marker. A record you made by hand is never touched, even when a route uses the same name. The Cloudflare page shows that host as a conflict. To let HomeProxy manage the name, select **Adopt** on the host (see [Adopting a hand-made record on a route host](#adopting-a-hand-made-record-on-a-route-host)).
 
 Do not edit these comments by hand. A record whose comment no longer matches counts as hand-made.
 
@@ -47,11 +47,35 @@ Reconcile changes nothing and says why when:
 
 Turn the integration off first, or the next reconcile creates the route records again. The audit log records each removal, with the names deleted.
 
+## Adopting a hand-made record on a route host
+
+If a route's host already has one A, AAAA or CNAME record that you made, the Cloudflare page shows the host as hand-made with an **Adopt** button. When you adopt the record, HomeProxy writes the route marker into its comment and then runs **Sync now**. The audit log records the adoption. The sync changes the record:
+
+- HomeProxy changes a CNAME record in place. It points to the DDNS record and gets the route's proxy setting. The name always has a record.
+- HomeProxy deletes an A or AAAA record, then creates the route's CNAME. For about one second, the name has no record.
+
+**Adopt** works only for a host of a public route that is applied and has the Cloudflare record switch on. It refuses a record that HomeProxy already manages, and a record of another type, such as TXT or MX. It also refuses a host that has more than one record. In that case, remove the extra records in Cloudflare and try again.
+
+HomeProxy owns the record after you adopt it. If you remove the route or turn off its Cloudflare record switch, HomeProxy deletes the record.
+
 ## Adopting a hand-made DDNS record
 
 If `ddns_record` already has one A record that you made, HomeProxy does not change it. The Cloudflare page shows it as hand-made with an **Adopt** button. Adopting writes the DDNS marker into the record's comment and keeps its address, proxy setting and TTL. HomeProxy then runs a DDNS update at once, which moves the record to your WAN address. The audit log records the adoption.
 
 The page shows no Adopt button when the name holds records that adoption cannot fix: a CNAME, more than one hand-made A record, or a HomeProxy record next to a hand-made one. Clean up the records in Cloudflare until one A record is left.
+
+## A proxy you turned on by hand
+
+If you turn on the proxy for a route's record in Cloudflare, and HomeProxy does not proxy the route through Cloudflare, HAProxy logs the address of Cloudflare's edge. The logs, GeoIP and CrowdSec then do not see the visitor's address.
+
+HomeProxy finds this in the logged client addresses, also when the integration is off. If a route gets a request from an address in `cloudflare.lst`, Overview shows a warning under **Needs attention**. The route's edit page shows the same warning.
+
+To fix it, do one of these steps:
+
+- In the route, turn on **Cloudflare DNS record** and set **Cloudflare proxy** to "Proxied through Cloudflare". Then apply. The integration must be on.
+- In Cloudflare, turn off the proxy for the record.
+
+The warning stays for 24 hours after the last request from Cloudflare's edge. When you apply the route with the proxy on, the warning goes at once. HomeProxy keeps these requests in memory only, so a restart of the dashboard clears the warning. `/status` lists these routes in `cloudflare_unmarked`.
 
 ## Things to know
 

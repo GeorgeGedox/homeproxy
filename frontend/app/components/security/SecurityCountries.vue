@@ -45,7 +45,7 @@ const facts = computed(() => {
       <p v-if="!state.data" class="text-sm text-muted">
         Download the data first. It names the countries and their address ranges, and the provider is set in Settings.
       </p>
-      <GeoipCountryPicker v-else :model-value="state.block_countries" every-route @update:model-value="geoip.save" />
+      <GeoipCountryPicker v-else :model-value="state.block_countries" replaces @update:model-value="geoip.save" />
       <p v-if="geoip.listError.value" class="text-sm text-error">{{ geoip.listError.value }}</p>
     </div>
   </section>

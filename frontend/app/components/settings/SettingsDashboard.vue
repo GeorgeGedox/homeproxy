@@ -28,7 +28,7 @@ onMounted(() => void load());
           The dashboard now also listens on {{ pendingListen.listen }}. Open it and sign in within {{ secondsLeft }} s, or the change reverts.
           You may need to sign in again there.
         </p>
-        <UButton class="mt-2" :to="pendingListen.url" external target="_blank" icon="i-lucide-external-link" label="Open the new address" />
+        <UButton class="mt-2" :to="pendingListen.url" external target="_blank" icon="lucide:external-link" label="Open the new address" />
       </template>
     </UAlert>
     <UAlert

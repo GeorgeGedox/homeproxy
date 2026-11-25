@@ -33,7 +33,9 @@ from tests.integration.haproxy_live import docker
 
 PYTHON = "/opt/homeproxy/venv/bin/python"
 DASHBOARD = ("127.0.0.1", "9443")
-"""The dashboard's address inside the container. Loopback is in `lan_cidrs`."""
+"""The dashboard's address inside the container. Its own client address is in `lan_cidrs`."""
+OUTSIDE = "127.0.0.2"
+"""A loopback address that is not in `lan_cidrs`, so the dataset's country, DE, counts for it."""
 REFRESH = "/api/v1/geoip/refresh"
 APPLY_LIMIT = 5.0
 MEMORY_LIMIT = 300_000_000
@@ -44,7 +46,6 @@ REFRESH_TIMEOUT = 180.0
 """The download, build and apply of the largest map on a slow machine."""
 DOWNLOADS_PORT = 18765
 """Inside the container's own network namespace, never on the host."""
-HAPROXY = ("127.0.0.1", "8443")
 IPV4_ROWS = 2 * (MAX_ENTRIES * 3 // 4 - 1000)
 IPV6_ROWS = 2 * (MAX_ENTRIES // 4 - 1000)
 
@@ -54,7 +55,7 @@ dashboard:
   listen: 0.0.0.0:9443
   password_hash: "{PASSWORD_HASH}"
 network:
-  lan_cidrs: [192.168.1.0/24, 127.0.0.0/8]
+  lan_cidrs: [192.168.1.0/24, 127.0.0.1/32]
   haproxy_lan_ip: 192.168.1.10
   http_port: 8080
   https_port: 8443
@@ -95,6 +96,19 @@ print(json.dumps({"success": body["success"], "errors": body["errors"], "seconds
 """
 """`POST /apply` from inside the container, timed around the request only."""
 
+OUTSIDE_REQUEST = """
+import http.client, ssl, sys
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE
+connection = http.client.HTTPSConnection(
+    "127.0.0.1", 8443, context=context, timeout=8, source_address=(sys.argv[1], 0)
+)
+connection.request("GET", "/", headers={"Host": "app.example.com"})
+print(connection.getresponse().status)
+"""
+"""One request through HAProxy from a source address other than the dashboard client's."""
+
 
 def row(network: ipaddress.IPv4Network | ipaddress.IPv6Network, n: int) -> str:
     return f"{network.network_address},{network.broadcast_address},{'DE' if n % 2 else 'FR'}\n"
@@ -102,7 +116,7 @@ def row(network: ipaddress.IPv4Network | ipaddress.IPv6Network, n: int) -> str:
 
 def dbip_rows() -> str:
     """Rows that alternate two countries per IPv4 /24 and per IPv6 /32. Loopback is in DE, so
-    the test's own requests have a country that is not blocked."""
+    a request from `OUTSIDE` has a country that is not blocked."""
     ipv4 = int(ipaddress.IPv4Address("1.0.0.0"))
     ipv6 = int(ipaddress.IPv6Address("2001::"))
     rows = [row(ipaddress.IPv4Network((ipv4 + (n << 8), 24)), n) for n in range(IPV4_ROWS)]
@@ -262,9 +276,9 @@ def idle_memory(container: str) -> float:
 
 
 def countries_counted(container: str, headers: dict[str, str]) -> list[str | None]:
-    """Send one request through HAProxy and return the countries in the last hour's metrics."""
-    request = {"method": "GET", "path": "/", "headers": {"Host": "app.example.com"}}
-    assert dashboard(container, [request], HAPROXY)[0]["status"] == 200
+    """Send one request through HAProxy from `OUTSIDE`. Return the countries in the last hour."""
+    sent = docker("exec", container, PYTHON, "-c", OUTSIDE_REQUEST, OUTSIDE)
+    assert sent.strip() == "200", sent
     series = {"method": "GET", "path": "/api/v1/metrics/series?range=1h&group=country"}
     [answer] = dashboard(container, [series | {"headers": headers}])
     return [point["group"] for point in json.loads(answer["body"])]

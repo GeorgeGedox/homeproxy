@@ -8,7 +8,7 @@ from pydantic import BaseModel
 
 from homeproxy.api.apply import ServicesDep
 from homeproxy.api.changes import edit_lock
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.auth.routes import Runtime
 from homeproxy.certs.bundle import CertificateInfo
 from homeproxy.certs.plan import plan_certificates
@@ -52,7 +52,7 @@ def planned_certificates(runtime: Runtime) -> list[PlannedCertificate]:
 def renew_certificate(name: str, services: ServicesDep) -> Job:
     """Start renewing one certificate now, even when it is not due, and return its job."""
     if name not in {spec.name for spec in services.certificates.plan()}:
-        raise AuthError(
+        raise ApiError(
             404, "certificate_not_found", "The config needs no certificate by this name."
         )
     return submit_issue(services.jobs, services.certificates, name, force=True)

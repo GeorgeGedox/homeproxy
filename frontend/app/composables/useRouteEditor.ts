@@ -1,4 +1,7 @@
+import type { components } from "~~/api/schema";
 import type { RouteUser } from "~/utils/route";
+
+type RouteSaved = components["schemas"]["RouteSaved"];
 
 /** Where the editor starts: an existing route, a copy of one, or a new path on a site's host. */
 interface EditorStart { name?: string; copy?: string; host?: string; path?: string }
@@ -143,7 +146,8 @@ export function useRouteEditor({ name: editName, copy: copyName, host, path }: E
     return response.ok;
   }
 
-  async function saveRoute(route: Route) {
+  /** Stage the route. Returns what the API saved, or nothing with `failure` set. */
+  async function saveRoute(route: Route): Promise<RouteSaved | undefined> {
     const { data, error } = original.value
       ? await api.PUT("/api/v1/routes/{name}", { params: { path: { name: original.value.name } }, body: route })
       : await api.POST("/api/v1/routes", { body: route });

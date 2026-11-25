@@ -25,15 +25,13 @@ export function usePending() {
   const count = computed(() => summary.value.length);
   /** Staged files; a change with no plain-words summary, such as a comment edit, still counts. */
   const staged = computed(() => Boolean(review.value?.changes.length));
+  /** `config.yaml` is staged. The password, the dashboard settings and the allowlist write it at once, and an apply of the staged copy would undo them, so they wait. */
+  const configStaged = computed(() => Boolean(review.value?.changes.some((change) => change.path === "config.yaml")));
   /** Nothing staged, but the saved files differ from what HAProxy runs, or do not render: a hand edit to load or fix. */
   const handEdit = computed(() => !review.value?.changes.length && Boolean(review.value?.generated_diff || review.value?.generated_error));
 
   async function refresh(): Promise<void> {
-    try {
-      review.value = (await api.GET("/api/v1/changes")).data ?? null;
-    } catch {
-      review.value = null;
-    }
+    review.value = (await api.GET("/api/v1/changes")).data ?? null;
   }
 
   /** The Cloudflare reconcile runs after the apply. Its failure never fails the apply. */
@@ -78,7 +76,7 @@ export function usePending() {
     await refresh();
   }
 
-  return { review, summary, count, staged, handEdit, applying, failure, applies, discards, refresh, apply, discard };
+  return { review, summary, count, staged, configStaged, handEdit, applying, failure, applies, discards, refresh, apply, discard };
 }
 
 /** HAProxy's output holds notices and warnings too; its alert lines say why it refused. */

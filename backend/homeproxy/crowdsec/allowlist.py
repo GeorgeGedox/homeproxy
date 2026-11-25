@@ -24,11 +24,10 @@ CROWDSEC_SPOE = "crowdsec-spoe.cfg"
 
 
 class ChangesPending(StoreError):
-    """Edits are pending. Their `config.yaml` holds the old allowlist, and an apply would undo
-    the change."""
+    """`config.yaml` is staged. It holds the old allowlist, and an apply would undo the change."""
 
     def __init__(self) -> None:
-        super().__init__("apply or discard the pending changes first")
+        super().__init__("apply or discard the pending change to config.yaml first")
 
 
 def add_to_allowlist(store: Store, client: HAProxyClient, entry: str) -> list[str]:
@@ -62,7 +61,7 @@ def _update(
 ) -> list[str]:
     """Edit the allowlist in `config.yaml`, then bring HAProxy and the live release in line."""
     with store.lock() as held:
-        if PendingChanges(store).status(held).changes:
+        if PendingChanges(store).config_staged(held):
             raise ChangesPending()
         tree = load_tree(store.config_path)
         validate_config(tree, store.config_path.name)

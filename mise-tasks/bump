@@ -17,7 +17,8 @@ fi
 # The release workflow creates the tags on GitHub; the notes start after the last one.
 git fetch --quiet --tags origin
 
-(cd backend && uv version --bump "$kind")
+# --no-sync: re-lock only. The release-pr job holds a write token and installs nothing more.
+(cd backend && uv version --bump "$kind" --no-sync)
 version=$(cd backend && uv version --short)
 body=$(git rev-parse --git-path RELEASE_PR_BODY)
 mise run --quiet release-notes --closes > "$body"

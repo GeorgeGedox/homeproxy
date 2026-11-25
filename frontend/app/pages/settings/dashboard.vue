@@ -12,11 +12,11 @@ const pending = usePending();
       <SettingsNav current="dashboard" />
       <div class="min-w-0 max-w-3xl flex-1 space-y-4">
         <p class="text-sm text-muted">These are saved at once, never staged, so the dashboard keeps working whatever an apply does.</p>
-        <p v-if="pending.staged.value" class="flex items-start gap-2 rounded-lg border border-default px-4 py-3 text-sm text-muted">
+        <p v-if="pending.configStaged.value" class="flex items-start gap-2 rounded-lg border border-default px-4 py-3 text-sm text-muted">
           <UIcon name="lucide:triangle-alert" class="mt-0.5 size-4 shrink-0 text-warning" />
-          Staged changes hold a copy of the config, so the address and session length cannot be saved until you apply or discard them.
+          A staged change to config.yaml holds a copy of the old values, so the address and session length cannot be saved until you apply or discard it.
         </p>
-        <SettingsDashboard :blocked="pending.staged.value" />
+        <SettingsDashboard :blocked="pending.configStaged.value" />
         <SettingsSection title="Password" description="The one admin password of this dashboard.">
           <UButton to="/settings/password" label="Change password" color="neutral" variant="outline" />
         </SettingsSection>

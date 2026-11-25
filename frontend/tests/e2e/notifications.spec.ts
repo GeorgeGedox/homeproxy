@@ -1,5 +1,5 @@
 import type { Page } from "@playwright/test";
-import { expect, test } from "./fixtures";
+import { expect, routeApi, test, type Reply } from "./fixtures";
 
 const DISCORD_URL = "https://discord.com/api/webhooks/123/discord-secret-token";
 const HEARTBEAT_URL = "https://hc-ping.example.com/heartbeat-secret-uuid";
@@ -28,7 +28,6 @@ async function mockApi(page: Page): Promise<Mock> {
     prometheus: { enabled: false },
     notifications: {},
   };
-  type Reply = [number, unknown?];
   const handlers: Record<string, (body: Body) => Reply> = {
     "GET /auth/me": () => [200, { authenticated: true }],
     "GET /settings": () => [200, settings],
@@ -54,12 +53,7 @@ async function mockApi(page: Page): Promise<Mock> {
     "GET /status": () => [200, { haproxy_version: "3.4.0", haproxy_error: null, version_check: null, last_apply: null, routes: [], bouncer: null }],
     "GET /changes": () => [200, { changes: [], conflict: false, conflicting_paths: [], config_diff: "", generated_diff: "", generated_error: null }],
   };
-  await page.route("**/api/v1/**", (route) => {
-    const request = route.request();
-    const path = new URL(request.url()).pathname.replace("/api/v1", "");
-    const [status, data] = handlers[`${request.method()} ${path}`]?.(request.postDataJSON() ?? {}) ?? [404, {}];
-    return route.fulfill({ status, contentType: "application/json", body: data ? JSON.stringify(data) : "" });
-  });
+  await routeApi<Body | null>(page, (method, path, body) => handlers[`${method} ${path}`]?.(body ?? {}));
   return mock;
 }
 

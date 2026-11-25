@@ -16,6 +16,8 @@ services:
     configs:
       - source: crowdsec_haproxy
         target: /etc/crowdsec/acquis.d/haproxy.yaml
+      - source: crowdsec_unknown_host
+        target: /etc/crowdsec/scenarios/homeproxy-unknown-host.yaml
     ports:
       - "127.0.0.1:18080:8080"      # LAPI, for crowdsec.lapi_url
       - "127.0.0.1:15140:514/udp"   # syslog acquisition, for crowdsec.syslog
@@ -34,6 +36,29 @@ configs:
       max_message_len: 4096
       labels:
         type: syslog
+  crowdsec_unknown_host:
+    content: |
+      # HomeProxy answers a host that no route serves from its be_unknown_host backend. Real
+      # visitors never ask for one, but scanners ask for the bare IP, a random name or no name.
+      # The second such request in about 10 minutes bans the client. A browser can also ask for
+      # /favicon.ico after the page, so that request does not count.
+      type: leaky
+      name: homeproxy/unknown-host
+      description: "Ban a client that asks twice for a host that HomeProxy does not serve"
+      filter: "evt.Meta.log_type == 'http_access-log' && evt.Parsed.backend_name == 'be_unknown_host' && evt.Meta.http_path != '/favicon.ico'"
+      groupby: evt.Meta.source_ip
+      capacity: 1
+      leakspeed: 10m
+      blackhole: 1m
+      labels:
+        service: http
+        confidence: 3
+        spoofable: 0
+        classification:
+          - attack.T1595
+        behavior: "http:scan"
+        label: "Request for an unknown host"
+        remediation: true
 
 volumes:
   homeproxy-data:
@@ -42,6 +67,7 @@ volumes:
 ```
 
 - `crowdsecurity/haproxy` brings the HAProxy log parser and the generic HTTP scenarios. The syslog acquisition receives HAProxy's access lines.
+- `crowdsec_unknown_host` adds HomeProxy's own scenario, `homeproxy/unknown-host`. See [Ban scanners](#ban-scanners).
 - HomeProxy runs on the host network, so the engine publishes its LAPI and its syslog acquisition (UDP) on `127.0.0.1` of the host, and HomeProxy uses those addresses.
 - `configs` with `content` needs Docker Compose 2.23.1 or later. With an older Compose, put the acquisition in a file and mount it at the same path.
 
@@ -64,7 +90,7 @@ volumes:
    `-f -` prints the login and the password instead of writing them to the engine's own credentials file.
 3. In HomeProxy, open Settings. Under CrowdSec, set the Bouncer key to the value of `CROWDSEC_BOUNCER_KEY`, the Machine ID to `homeproxy-ui` and the Machine password to the printed password. Keys are saved at once.
 4. Turn on the CrowdSec switch, set CrowdSec API URL to `http://127.0.0.1:18080` and CrowdSec syslog address to `127.0.0.1:15140`, and press Save settings. Then press Apply in the bar at the bottom.
-5. Check it. The CrowdSec section on Settings shows "Bouncer up" after a few seconds, and the Security page lists the decisions, if there are any yet. After some traffic, `docker compose exec crowdsec cscli metrics show acquisition parsers` shows lines read from `syslog` and parsed by `crowdsecurity/haproxy-logs`.
+5. Check it. The CrowdSec section on Settings shows "Bouncer up" after a few seconds. Select **Test connection** there. See [Connection test](#connection-test). The Security page lists the decisions, if there are any yet. After some traffic, `docker compose exec crowdsec cscli metrics show acquisition parsers` shows lines read from `syslog` and parsed by `crowdsecurity/haproxy-logs`.
 
 ## Access lines
 
@@ -84,6 +110,21 @@ CrowdSec reads HTTP access lines only. Its HAProxy parser (`crowdsecurity/haprox
 | `http` | Yes | Yes |
 | `tcp` | No | Yes, for bans that CrowdSec made from other traffic or got from a blocklist |
 | `passthrough` | No | Yes, for bans that CrowdSec made from other traffic or got from a blocklist |
+
+## Ban scanners
+
+Scanners send requests to the bare IP of your server, to a random host name, or with no host name. A real visitor uses the host name of a site. HomeProxy answers a request for a host that no route serves with `404 Not Found`, from the `be_unknown_host` backend.
+
+The `homeproxy/unknown-host` scenario bans a client that sends two of these requests in about 10 minutes. With the default profile, the ban lasts 4 hours. One request does not cause a ban, because a person can type a wrong address one time. A browser can also ask for `/favicon.ico` after the page, so the scenario does not count that request.
+
+These requests do not count:
+
+- A request for a host that a route serves, on a path that no route of that host serves.
+- A request for the host of a route that is switched off.
+- A plain HTTP request. HomeProxy sends the client to HTTPS, and the scenario counts only the HTTPS request.
+- A request through Cloudflare. CrowdSec never bans the addresses of Cloudflare, because of its `crowdsecurity/cdn-whitelist`.
+
+A request for the host of a route that you deleted counts. If the scenario bans a visitor by mistake, delete the decision on the Security page. To stop these bans, remove the `crowdsec_unknown_host` lines from `compose.yaml`, then run `docker compose up -d crowdsec`.
 
 ## Settings
 
@@ -136,7 +177,7 @@ The bouncer starts after the first apply with `crowdsec.enabled: true`, and stop
 
 The dashboard lists, adds and deletes CrowdSec decisions through the LAPI at `crowdsec.lapi_url`. It logs in as its own CrowdSec machine, from step 2 of the setup, not with the bouncer key. While CrowdSec is off, or the machine ID or password is missing, the Security page says so and its **Ban an address** button is disabled.
 
-- The list shows every active ban and captcha, with its address or range, its origin and its time left. Decisions from blocklists can number thousands, so they are hidden behind **Show N from blocklists**; a search finds them too. The origin is `crowdsec` for a local detection, `cscli` for a manual decision (yours or one from the dashboard) and `CAPI` or `lists` for a blocklist.
+- The list shows every active ban and captcha, with its address or range, its origin and its time left. Decisions from blocklists can number thousands, so the list hides them. The line below the list gives their number and the time of the newest blocklist update that brought decisions. **Show them** shows them, and a search finds them too. With 0 blocklist decisions, the line links to the CrowdSec console, where you enroll the engine to get blocklists. The dashboard cannot see whether the engine is registered with the Central API. To see that, run `docker compose exec crowdsec cscli capi status`. The origin is `crowdsec` for a local detection, `cscli` for a manual decision (yours or one from the dashboard) and `CAPI` or `lists` for a blocklist.
 - A manual ban or captcha is for an IP address or a range, for at least one second.
 - Deleting a decision takes effect within about 10 seconds, when the bouncer pulls its next update. An address from a blocklist can come back at the blocklist's next pull, so **Unban** on such an address asks first and offers **Allowlist and unban**, which lets it in for good.
 
@@ -150,7 +191,7 @@ An allowlist change from the dashboard takes effect at once, with no apply. Home
 
 A range that reaches outside the private ranges, such as `198.51.0.0/16`, is added with a warning that names it, and every apply repeats the warning, because CrowdSec never checks any client in it. A single public address, such as one you allowlist from a ban, is no warning.
 
-The dashboard refuses an allowlist change while other changes are pending. Apply or discard them first. Their copy of `config.yaml` holds the old allowlist, and applying it would undo the change.
+The dashboard refuses an allowlist change while a change to `config.yaml` is pending, for example a settings, domain or DNS change. Apply or discard that change first. Its copy of `config.yaml` holds the old allowlist. If you apply that copy, it undoes the allowlist change. Other pending changes, such as a route, do not stop an allowlist change.
 
 If HAProxy does not answer, the change is still saved and the next apply uses it. Make the same change again to update HAProxy at once.
 
@@ -208,3 +249,18 @@ HTTP lines use HAProxy's default `httplog` fields, and TCP lines use its default
 ## Bouncer state
 
 The CrowdSec card on the Security page and the CrowdSec section on the Settings page show whether the bouncer is up or down, as HAProxy's health check of the bouncer's socket sees it. HAProxy checks the socket every 2 seconds. While the bouncer is down, requests are not checked and pass through. The state is empty while CrowdSec is off.
+
+## AppSec state
+
+While AppSec is on, the CrowdSec section on the Settings page shows whether AppSec is up or down. The dashboard sends AppSec a request for a harmless page with the bouncer key, as the bouncer does. AppSec is up when it allows that request. AppSec fails open, so while it is down, requests pass without AppSec checks. The `appsec_down` notification tells you when AppSec is down for 2 minutes, and when it recovers.
+
+## Connection test
+
+**Test connection** in the CrowdSec section on the Settings page checks each part of CrowdSec and shows one line for each part. A part that fails does not stop the other checks. The test uses the applied settings and the saved keys.
+
+| Line | What the test does |
+| --- | --- |
+| Machine | Logs in to the LAPI with the machine ID and the machine password |
+| Bouncer | Asks the LAPI for decisions with the bouncer key |
+| AppSec | Asks AppSec about a harmless request with the bouncer key. The line says "AppSec is off" while AppSec is off |
+| Blocklist | Counts the active blocklist decisions with the machine login. 0 is a correct result: the engine can be registered, but have no blocklist decisions yet |

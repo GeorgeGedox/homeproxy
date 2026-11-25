@@ -3,7 +3,7 @@ exist. The global list, a route's list and the settings all save through it."""
 
 from pathlib import Path
 
-from homeproxy.auth.errors import AuthError
+from homeproxy.api.errors import ApiError
 from homeproxy.geoip.data import load_data_info
 from homeproxy.jobs import JobRunner
 from homeproxy.jobs.geoip import KIND
@@ -20,11 +20,11 @@ def check_added_countries(
         return
     info = load_data_info(root)
     if info is None:
-        raise AuthError(422, "geoip_no_data", _no_data(jobs), field=f"{field}.{added[0][0]}")
+        raise ApiError(422, "geoip_no_data", _no_data(jobs), field=f"{field}.{added[0][0]}")
     for index, code in added:
         if code not in info.countries:
             message = f"{code} is not a country in the GeoIP data."
-            raise AuthError(422, "unknown_country", message, field=f"{field}.{index}")
+            raise ApiError(422, "unknown_country", message, field=f"{field}.{index}")
 
 
 def _no_data(jobs: JobRunner) -> str:

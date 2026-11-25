@@ -18,10 +18,7 @@ from homeproxy.jobs.geoip import refresh
 from homeproxy.jobs.update_check import UpdateCheck
 from homeproxy.notify import sender
 from homeproxy.store import Store, load_tree, write_tree
-from tests.conftest import Receiver
-
-NOWHERE = "http://127.0.0.1:9"
-"""Nothing listens on the discard port, so a fetch from here fails at once."""
+from tests.conftest import NOWHERE, Receiver
 
 
 def events(receiver: Receiver) -> list[str]:

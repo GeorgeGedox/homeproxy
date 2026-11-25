@@ -193,3 +193,18 @@ test("a site setting changed in one path's editor is staged on every path of the
   await apply(page);
   expect((await viaHaproxy(stack, `${SITE}/`)).status).toBe(200);
 });
+
+test("a route country list that replaces the global one saves, even empty, and says so", async ({ page }) => {
+  await logIn(page);
+  await openPath(page, "app.example.com", "/");
+  await page.getByRole("switch", { name: /Block countries/ }).click();
+  await expect(page.getByText("Countries (adds to the global list)")).toBeVisible();
+  await page.getByRole("switch", { name: /Replace the global list/ }).click();
+  await expect(page.getByText("Countries (replaces the global list)")).toBeVisible();
+  await page.getByRole("button", { name: "Stage change" }).click();
+  await apply(page);
+
+  await openPath(page, "app.example.com", "/");
+  await expect(page.getByRole("switch", { name: /Replace the global list/ })).toBeChecked();
+  await expect(page.getByText("Countries (replaces the global list)")).toBeVisible();
+});
