@@ -32,7 +32,7 @@ async function add(): Promise<void> {
       <template v-if="dns.loaded.value">
         <DnsServer
           :state="dns.server.value" :listen="dns.listen.value" :forward-to="dns.forwardTo.value" :forward-staged="dns.forwardStaged.value" :zones="dns.zones.value"
-          :adguard-lines="dns.adguardLines.value" @copy="dns.copyAdguardLines"
+          :lines="dns.lines.value" @copy="dns.copyLines"
         />
         <DnsNames :names="dns.names.value" @remove="dns.remove" />
       </template>

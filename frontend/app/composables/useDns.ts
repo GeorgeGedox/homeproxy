@@ -39,11 +39,12 @@ export function useDns() {
   });
   const listen = computed(() => data.value?.served?.listen ?? data.value?.server?.listen ?? "");
   const zones = computed(() => data.value?.served?.zones ?? []);
-  const adguardLines = computed(() => zones.value.map((zone) => `[/${zone}/]${listen.value}`).join("\n"));
+  const lines = computed(() => forwardingLines(zones.value, listen.value));
 
-  async function copyAdguardLines(): Promise<void> {
-    await navigator.clipboard.writeText(adguardLines.value);
-    toast.add({ title: "Copied", description: `${zones.value.length === 1 ? "One line" : `${zones.value.length} lines`} for AdGuard Home` });
+  async function copyLines(format: "adguard" | "dnsmasq"): Promise<void> {
+    await navigator.clipboard.writeText(lines.value[format]);
+    const target = format === "adguard" ? "AdGuard Home" : "dnsmasq or Pi-hole";
+    toast.add({ title: "Copied", description: `${zones.value.length === 1 ? "One line" : `${zones.value.length} lines`} for ${target}` });
   }
 
   /** Stage an extra record. Returns the API's refusal, or undefined when it was staged. */
@@ -59,5 +60,5 @@ export function useDns() {
     await Promise.all([refresh(), pending.refresh()]);
   }
 
-  return { names, server, listen, forwardTo, forwardStaged, zones, adguardLines, copyAdguardLines, error: computed(() => loadError.value || removeError.value), loaded: computed(() => Boolean(data.value)), add, remove };
+  return { names, server, listen, forwardTo, forwardStaged, zones, lines, copyLines, error: computed(() => loadError.value || removeError.value), loaded: computed(() => Boolean(data.value)), add, remove };
 }
