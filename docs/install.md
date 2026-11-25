@@ -139,7 +139,7 @@ The archive holds `secrets/secrets.yaml` and the certificate keys. It is not enc
 ### Download a backup
 
 1. Open **Settings**, then **Backup**.
-2. Choose **Download backup**.
+2. Click **Download backup**.
 
 The browser saves `homeproxy-backup-<version>-<time>.tar.gz`.
 
@@ -148,11 +148,11 @@ The browser saves `homeproxy-backup-<version>-<time>.tar.gz`.
 A script can download the backup with a backup token. The token works for the backup download only.
 
 1. Open **Settings**, then **Backup**.
-2. Choose **Create token**.
+2. Click **Create token**.
 3. Copy the token. The dashboard shows it once.
 4. Put the token in the variable `HOMEPROXY_BACKUP_TOKEN` of your script.
 
-To make a new token, choose **Replace token**. The old token stops working at once. To stop all scripts, choose **Remove token**.
+To make a new token, click **Replace token**. The old token stops working at once. To stop all downloads by script, click **Remove token**.
 
 The dashboard certificate is self-signed. Save it once, and compare its fingerprint with the one in the container log:
 
@@ -168,7 +168,7 @@ curl --fail --cacert homeproxy.pem --resolve homeproxy:8443:192.168.1.10 \
   -H "Authorization: Bearer $HOMEPROXY_BACKUP_TOKEN" -OJ https://homeproxy:8443/api/v1/backup
 ```
 
-Do not use `--insecure`. Without the certificate check, anyone on your LAN can read the token.
+Do not use `--insecure`. Without the certificate check, a device on your LAN that pretends to be the dashboard can get the token.
 
 To encrypt the archive on the machine that stores it, use `age` or `gpg`. Each command asks for a passphrase:
 
@@ -181,12 +181,14 @@ A script cannot answer a passphrase prompt. In a script, use `age -r <public key
 
 ### Restore on a new machine
 
-1. Do steps 1 to 4 of this page, and open the setup page.
-2. Enter the setup token from the container log.
-3. Under **Restore from backup**, choose the `.tar.gz` file and choose **Restore backup**.
-4. Wait a few seconds. The dashboard restarts with the certificate from the backup.
-5. Reload the page and accept the certificate warning again.
-6. Log in with the password from the backup.
+1. Do steps 1 to 4 of this page.
+2. Open the setup page, as in step 5.
+3. Enter the setup token from the container log.
+4. Under **Restore from backup**, select the `.tar.gz` file.
+5. Click **Restore backup**.
+6. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+7. Reload the page and accept the certificate warning again.
+8. Log in with the password from the backup.
 
 The restore replaces setup. It works only on an install that is not set up. The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
 
