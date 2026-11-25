@@ -13,12 +13,17 @@ import time
 import uuid
 from collections.abc import Iterator
 from dataclasses import dataclass
+from datetime import timedelta
+from functools import partial
 from pathlib import Path
 
 import httpx2
 import pytest
 
-from tests.conftest import wait_until
+from homeproxy.crowdsec.health import appsec_state
+from homeproxy.jobs.state_alerts import StateAlerts
+from homeproxy.store import Store, load_tree, write_tree
+from tests.conftest import Receiver, wait_until
 from tests.integration.crowdsec_lab import (
     BOUNCER_KEY,
     CROWDSEC_IMAGE,
@@ -300,3 +305,42 @@ def test_requests_are_served_while_appsec_does_not_answer(lab: Lab) -> None:
     finally:
         docker("unpause", lab.crowdsec)
     lab.wait_for_appsec()
+
+
+def test_appsec_that_stops_answering_sends_one_down_and_one_recovered_message(
+    lab: Lab, receiver: Receiver, tmp_path: Path
+) -> None:
+    """`/status` and the `appsec_down` alert read the same check. A paused engine still accepts
+    connections, so only an answer shows that AppSec works."""
+    shutil.copytree(SEED, tmp_path / "data")
+    store = Store(tmp_path / "data")
+    store.config_path.write_text(config(True, lab.lapi))
+    tree = load_tree(store.config_path)
+    tree["notifications"] = {"targets": [{"name": "hook", "type": "webhook"}]}
+    write_tree(store.config_path, tree)
+    with store.secrets_path.open("a") as secrets:
+        secrets.write(f'notifications:\n  targets:\n    hook: {{url: "{receiver.url("/hook")}"}}\n')
+    job = StateAlerts(
+        store, list, list, appsec=partial(appsec_state, store), down_after=timedelta(seconds=1)
+    )
+    assert appsec_state(store) == "up"
+
+    def sent(count: int) -> bool:
+        job.run()
+        return len(receiver.bodies("/hook")) >= count
+
+    docker("pause", lab.crowdsec)
+    try:
+        wait_until(lambda: sent(1), "the down message", timeout=30)
+    finally:
+        docker("unpause", lab.crowdsec)
+    lab.wait_for_appsec()
+    wait_until(lambda: sent(2), "the recovered message", timeout=30)
+    for _ in range(3):
+        job.run()
+
+    Receiver.wait()
+    assert [(body["event"], body["title"]) for body in receiver.bodies("/hook")] == [
+        ("appsec_down", "CrowdSec AppSec is down"),
+        ("appsec_down", "CrowdSec AppSec recovered"),
+    ]

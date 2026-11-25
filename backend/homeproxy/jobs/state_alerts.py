@@ -1,5 +1,5 @@
-"""State alerts: a route or the CrowdSec bouncer down and recovered, and a certificate that expires
-within 7 days.
+"""State alerts: a route, the CrowdSec bouncer or AppSec down and recovered, and a certificate
+that expires within 7 days.
 
 One message per change of state, never one per check. The states already sent are kept in
 `/data/state/alerts.json`, so a restart does not send them again.
@@ -9,6 +9,7 @@ import logging
 from collections.abc import Callable
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ValidationError
 
@@ -31,6 +32,7 @@ DOWN_AFTER = timedelta(minutes=2)
 EXPIRING_WITHIN = timedelta(days=ALERT_DAYS)
 STATE_FILE = Path("state") / "alerts.json"
 BOUNCER = "bouncer"
+APPSEC = "appsec"
 ROUTE = "route:"
 """Prefix of a route's key in `SentAlerts.down`."""
 
@@ -47,7 +49,8 @@ def _utcnow() -> datetime:
 
 
 class StateAlerts:
-    """Sends `route_down`, `bouncer_down` and `certificate_expiring` on each change of state.
+    """Sends `route_down`, `bouncer_down`, `appsec_down` and `certificate_expiring` on each change
+    of state. `appsec` returns AppSec's state, or None while it is off.
 
     `stats` is `client.show_stat` and `certificates` lists the installed certificates. A route is
     watched while it is enabled, so a route without a check path is watched through HAProxy's TCP
@@ -63,12 +66,14 @@ class StateAlerts:
         stats: Callable[[], list[StatRow]],
         certificates: Callable[[], list[CertificateInfo]],
         *,
+        appsec: Callable[[], Literal["up", "down"] | None] = lambda: None,
         down_after: timedelta = DOWN_AFTER,
         clock: Callable[[], datetime] = _utcnow,
     ) -> None:
         self._store = store
         self._stats = stats
         self._certificates = certificates
+        self._appsec = appsec
         self._down_after = down_after
         self._clock = clock
         self._down_since: dict[str, datetime] = {}
@@ -114,6 +119,9 @@ class StateAlerts:
         bouncer = bouncer_state(rows)
         if bouncer is not None:
             watched[BOUNCER] = bouncer == "down"
+        appsec = self._appsec()
+        if appsec is not None:
+            watched[APPSEC] = appsec == "down"
         return watched
 
     def _update(self, key: str, down: bool, now: datetime) -> None:
@@ -134,6 +142,10 @@ class StateAlerts:
             text = f"HAProxy has not reached the bouncer since {when}. Requests pass unchecked."
             notify(self._store, "bouncer_down", "CrowdSec bouncer is down", text)
             return
+        if key == APPSEC:
+            text = f"AppSec has not checked a request since {when}. Requests pass without it."
+            notify(self._store, "appsec_down", "CrowdSec AppSec is down", text)
+            return
         name = key.removeprefix(ROUTE)
         text = f"HAProxy has found no healthy server since {when}."
         notify(self._store, "route_down", f"Route {name} is down", text)
@@ -142,6 +154,10 @@ class StateAlerts:
         if key == BOUNCER:
             text = "HAProxy reaches the bouncer again."
             notify(self._store, "bouncer_down", "CrowdSec bouncer recovered", text, recovered=True)
+            return
+        if key == APPSEC:
+            text = "AppSec checks requests again."
+            notify(self._store, "appsec_down", "CrowdSec AppSec recovered", text, recovered=True)
             return
         name = key.removeprefix(ROUTE)
         text = "HAProxy reaches a healthy server again."

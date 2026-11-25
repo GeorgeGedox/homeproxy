@@ -88,8 +88,9 @@ notifications:
 | `certificate_expiring` | A certificate expires within 7 days. One message per certificate until it renews, also across restarts | warning |
 | `route_down` | A route has had no healthy server for 2 minutes, and again once it recovers. Every enabled route with upstreams is watched. A route without a health check path is checked by a TCP connect | error, info on recovery |
 | `bouncer_down` | HAProxy's check of the CrowdSec bouncer has failed for 2 minutes, and again once it recovers. While it is down, requests pass without CrowdSec checks | error, info on recovery |
+| `appsec_down` | AppSec has not allowed the dashboard's check request for 2 minutes, and again once it recovers. While it is down, requests pass without AppSec checks | error, info on recovery |
 
-Route and bouncer health come from HAProxy's own checks, read every 15 seconds. A short outage, such as a restart of the upstream, sends nothing. Each change of state sends one message, and `/data/state/alerts.json` records what was sent, so a restart of HomeProxy does not send it again. A route that is disabled or removed while it is down sends no recovery message. To get no route messages, leave `route_down` out of a target's events.
+Route and bouncer health come from HAProxy's own checks, read every 15 seconds. AppSec health comes from a check request that the dashboard sends every 15 seconds. A short outage, such as a restart of the upstream, sends nothing. Each change of state sends one message, and `/data/state/alerts.json` records what was sent, so a restart of HomeProxy does not send it again. A route that is disabled or removed while it is down sends no recovery message. To get no route messages, leave `route_down` out of a target's events.
 
 ## Delivery
 

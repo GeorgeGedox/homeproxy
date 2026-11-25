@@ -4,9 +4,16 @@ The bouncer's own config is the pipeline's job, in `homeproxy.generator.crowdsec
 """
 
 from homeproxy.crowdsec.allowlist import ChangesPending, add_to_allowlist, remove_from_allowlist
-from homeproxy.crowdsec.lapi import Decision, DecisionType, LapiClient, LapiError
+from homeproxy.crowdsec.lapi import (
+    BLOCKLIST_ORIGINS,
+    Decision,
+    DecisionType,
+    LapiClient,
+    LapiError,
+)
 
 __all__ = [
+    "BLOCKLIST_ORIGINS",
     "ChangesPending",
     "Decision",
     "DecisionType",

@@ -5,6 +5,7 @@ Health is read from HAProxy's `show stat` on each request, so it is as fresh as 
 checks. When HAProxy does not answer, the status still answers, with `haproxy_error` set.
 """
 
+import logging
 from collections.abc import Iterable
 from datetime import datetime
 from typing import Literal
@@ -13,6 +14,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from homeproxy.api.apply import ServicesDep
+from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.dns.probe import dns_listening, dns_uptime_seconds
 from homeproxy.dns.snapshot import FILE_NAME as DNS_FILE
 from homeproxy.generator import BACKEND_PREFIX
@@ -22,7 +24,9 @@ from homeproxy.haproxy.stats import HAProxyInfo, ProxyType, StatRow
 from homeproxy.haproxy.version_check import VersionStatus
 from homeproxy.jobs.update_check import UpdateCheck, UpdateStatus
 from homeproxy.jobs.version_check import VersionCheck
-from homeproxy.store import AuditLog
+from homeproxy.store import AuditLog, StoreError
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/v1", tags=["status"])
 
@@ -73,6 +77,10 @@ class Status(BaseModel):
     bouncer: Literal["up", "down"] | None = Field(
         description="The CrowdSec bouncer as HAProxy's health check sees it. None when CrowdSec "
         "is off in the running release, or HAProxy did not answer"
+    )
+    appsec: Literal["up", "down"] | None = Field(
+        description="Whether AppSec checks a request for the bouncer, with the saved settings. "
+        "None when CrowdSec or AppSec is off"
     )
     dns_listening: bool = Field(
         description="Whether the DNS server accepts connections on the address of the live release"
@@ -136,6 +144,7 @@ def status(request: Request, services: ServicesDep) -> Status:
     DNS server is listening and its uptime, the HomeProxy update check, and the last apply."""
     check: VersionCheck = request.app.state.version_check
     update: UpdateCheck = request.app.state.update_check
+    reading: AppsecReading = request.app.state.appsec
     info: HAProxyInfo | None = None
     error: str | None = None
     routes: list[RouteHealth] = []
@@ -145,6 +154,11 @@ def status(request: Request, services: ServicesDep) -> Status:
     except HAProxyError as exc:
         error = str(exc)
     store = services.pipeline.store
+    try:
+        appsec = reading()
+    except (OSError, StoreError) as exc:
+        logger.warning("cannot read the CrowdSec settings for the AppSec state: %s", exc)
+        appsec = None
     listening = dns_listening(store.root / GENERATED / DNS_FILE)
     dns_uptime = dns_uptime_seconds(services.pipeline.dns_pid_file) if listening else None
     return Status(
@@ -156,6 +170,7 @@ def status(request: Request, services: ServicesDep) -> Status:
         update_check_configured=update.url is not None,
         routes=routes,
         bouncer=bouncer,
+        appsec=appsec,
         dns_listening=listening,
         dns_uptime_seconds=dns_uptime,
         last_apply=_last_apply(store.audit),

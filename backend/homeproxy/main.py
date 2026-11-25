@@ -38,6 +38,7 @@ from homeproxy.api.metrics import collect_metrics
 from homeproxy.auth import install_auth
 from homeproxy.auth.runtime import data_root
 from homeproxy.certs.service import CertificateService
+from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.geoip.lookup import CountryLookup
 from homeproxy.haproxy.client import HAProxyClient
 from homeproxy.haproxy.pipeline import Pipeline
@@ -105,7 +106,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     services.reconcile.schedule(runner)
     services.ddns.schedule(runner)
     Heartbeat(store, client.show_info).schedule(runner)
-    StateAlerts(store, client.show_stat, certificates.certificates).schedule(runner)
+    appsec = app.state.appsec = AppsecReading(store)
+    StateAlerts(store, client.show_stat, certificates.certificates, appsec=appsec).schedule(runner)
     files = LogFiles(root)
     collector = LogCollector(countries=CountryLookup(root), other=files.haproxy)
     collector.subscribe(files.access)

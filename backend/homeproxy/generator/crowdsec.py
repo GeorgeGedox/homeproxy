@@ -34,6 +34,13 @@ APPSEC_PORT = 7422
 """The AppSec component's default port, used on the LAPI's host when `appsec_url` is not set."""
 
 
+def appsec_url(crowdsec: Crowdsec) -> str:
+    """Return AppSec's URL, with a trailing `/`: `appsec_url`, or its default port on the LAPI's
+    host."""
+    default = f"http://{urlsplit(str(crowdsec.lapi_url)).hostname}:{APPSEC_PORT}"
+    return f"{crowdsec.appsec_url or default}/"
+
+
 def bouncer_config(crowdsec: Crowdsec, keys: SecretsCrowdsec) -> str:
     """Return the bouncer's config. JSON is YAML, and `json.dumps` quotes every value safely."""
     config: dict[str, object] = {
@@ -56,8 +63,7 @@ def bouncer_config(crowdsec: Crowdsec, keys: SecretsCrowdsec) -> str:
         config["hosts"] = [{"host": "*", "captcha": captcha}]
     if crowdsec.appsec:
         # The bouncer asks AppSec with its own key. AppSec failing or slow lets the request through.
-        default = f"http://{urlsplit(str(crowdsec.lapi_url)).hostname}:{APPSEC_PORT}"
-        config["appsec_url"] = f"{crowdsec.appsec_url or default}/"
+        config["appsec_url"] = appsec_url(crowdsec)
     return json.dumps(config, indent=2) + "\n"
 
 

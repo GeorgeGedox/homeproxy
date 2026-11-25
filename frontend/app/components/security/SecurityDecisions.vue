@@ -8,7 +8,7 @@ const props = defineProps<{ crowdsec: ReturnType<typeof useDecisions> }>();
 const emit = defineEmits<{ allowlisted: [] }>();
 const list = props.crowdsec;
 const { state: bouncer, known } = useBouncerState();
-const pending = usePending();
+const { configStaged } = usePending();
 const search = ref("");
 const page = ref(1);
 /** The blocklist decision whose unban asks first. */
@@ -25,7 +25,14 @@ const light = computed((): { tone: LedTone; text: string } => {
 const crowdsecOff = computed(() => known.value && bouncer.value === null);
 // Blocklists can hold thousands of decisions. They are hidden until asked for or searched, and the list is paged here.
 const showLists = ref(false);
-const listed = computed(() => list.decisions.value.filter((item) => FROM_BLOCKLIST.includes(item.origin)).length);
+const fromLists = computed(() => list.decisions.value.filter((item) => FROM_BLOCKLIST.includes(item.origin)));
+const listed = computed(() => fromLists.value.length);
+/** The newest pull that brought blocklist decisions. A pull with nothing new leaves no trace in the LAPI. */
+const listsUpdated = computed(() => fromLists.value.map((item) => item.created_at).sort().at(-1));
+const listsText = computed(() => {
+  const count = `Blocklists: ${formatCount(listed.value)} ${listed.value === 1 ? "decision" : "decisions"}`;
+  return listsUpdated.value ? `${count}, updated ${timeAgo(listsUpdated.value)}` : count;
+});
 const matching = computed(() => {
   const term = search.value.trim();
   if (term) return list.decisions.value.filter((item) => item.value.includes(term));
@@ -59,7 +66,7 @@ const menu = (item: Decision): DropdownMenuItem[] => [
   ...(list.longerThan(item).length
     ? [{ label: "Extend", children: list.longerThan(item).map(({ label, value }) => ({ label, onSelect: () => void list.extend(item, value) })) }]
     : []),
-  ...(FROM_BLOCKLIST.includes(item.origin) ? [{ label: "Allowlist", disabled: pending.configStaged.value, onSelect: () => void allowlist(item, false) }] : []),
+  ...(FROM_BLOCKLIST.includes(item.origin) ? [{ label: "Allowlist", disabled: configStaged.value, onSelect: () => void allowlist(item, false) }] : []),
 ];
 </script>
 
@@ -102,11 +109,10 @@ const menu = (item: Decision): DropdownMenuItem[] => [
     <p v-else-if="list.loaded.value && !list.error.value" class="px-4 py-3 text-sm text-muted">
       {{ search ? "No decision matches this address." : listed ? "Nothing detected here or added by hand." : "Nobody is banned right now." }}
     </p>
-    <div v-if="listed && !search" class="border-t border-default px-4 py-2">
-      <UButton
-        :label="showLists ? 'Hide blocklist decisions' : `Show ${formatCount(listed)} from blocklists`" color="neutral" variant="link" size="sm" class="px-0"
-        @click="showLists = !showLists"
-      />
+    <div v-if="list.loaded.value && !list.unconfigured.value && !search" class="flex flex-wrap items-center gap-x-3 border-t border-default px-4 py-2 text-sm">
+      <span class="text-muted">{{ listsText }}</span>
+      <UButton v-if="listed" :label="showLists ? 'Hide them' : 'Show them'" color="neutral" variant="link" size="sm" class="px-0" @click="showLists = !showLists" />
+      <UButton v-else to="https://app.crowdsec.net" external target="_blank" label="Enroll the engine in the CrowdSec console" color="neutral" variant="link" size="sm" class="px-0" />
     </div>
     <div v-if="matching.length > PAGE_SIZE" class="border-t border-default px-4 py-2">
       <UPagination v-model:page="page" :total="matching.length" :items-per-page="PAGE_SIZE" size="sm" />
@@ -115,10 +121,10 @@ const menu = (item: Decision): DropdownMenuItem[] => [
     <UModal :open="Boolean(asking)" :title="`${asking?.value} is on a blocklist`" @update:open="(open) => !open && (asking = undefined)">
       <template #description>
         Unban lets it in until the next blocklist pull, when it may come back. Allowlist it to let it in for good.
-        <template v-if="pending.configStaged.value">The allowlist waits until the staged change to config.yaml is applied or discarded.</template>
+        <template v-if="configStaged">The allowlist waits until the staged change to config.yaml is applied or discarded.</template>
       </template>
       <template #footer>
-        <UButton label="Allowlist and unban" :disabled="pending.configStaged.value" @click="allowlist(asking!, true)" />
+        <UButton label="Allowlist and unban" :disabled="configStaged" @click="allowlist(asking!, true)" />
         <UButton color="neutral" variant="outline" label="Unban only" @click="unbanOnly(asking!)" />
         <UButton color="neutral" variant="ghost" label="Cancel" @click="asking = undefined" />
       </template>

@@ -13,5 +13,7 @@ export function useBouncerState() {
   const timer = setInterval(() => void (document.hidden || refresh()), 5000);
   onScopeDispose(() => clearInterval(timer));
 
-  return { state, known: computed(() => data.value !== undefined) };
+  /** Whether AppSec checks requests for the bouncer. Null while CrowdSec or AppSec is off. */
+  const appsec = computed(() => data.value?.appsec ?? null);
+  return { state, appsec, known: computed(() => data.value !== undefined) };
 }

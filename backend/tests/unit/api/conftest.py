@@ -4,6 +4,7 @@ import base64
 import json
 import threading
 from collections.abc import Iterator
+from email.message import Message
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any
@@ -17,6 +18,7 @@ from homeproxy.auth.passwords import hash_password
 from homeproxy.auth.runtime import AuthRuntime, set_runtime
 from homeproxy.certs.lego import Lego
 from homeproxy.certs.service import CertificateService
+from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.haproxy.client import HAProxyClient
 from homeproxy.haproxy.pipeline import Pipeline
 from homeproxy.jobs import JobRunner
@@ -91,6 +93,7 @@ def make_client(root: Path, client: str = LAN_CLIENT[0]) -> TestClient:
     app.state.update_check = UpdateCheck(None)
     app.state.collector = LogCollector(root / "run" / "syslog.sock")
     app.state.metrics = MetricsStore(root / "state" / "metrics.db")
+    app.state.appsec = AppsecReading(store)
     return TestClient(app, base_url=ORIGIN, client=(client, 50000), headers={"Origin": ORIGIN})
 
 
@@ -175,3 +178,104 @@ def cloudflare(monkeypatch: pytest.MonkeyPatch) -> Iterator[dict[str, set[str]]]
     yield granted
     server.shutdown()
     server.server_close()
+
+
+MACHINE_ID = "homeproxy-ui"
+MACHINE_PASSWORD = "api-test-machine-password"  # noqa: S105 - accepted by the fake LAPI
+TOKEN = "api-test-lapi-token"  # noqa: S105
+BOUNCER_KEY = "api-test-bouncer-key"
+PULLED_AT = "2026-11-20T10:00:00Z"
+COMMUNITY_BAN = {
+    "id": 7,
+    "type": "ban",
+    "scope": "Ip",
+    "value": "203.0.113.7",
+    "origin": "CAPI",
+    "scenario": "crowdsecurity/http-probing",
+    "duration": "3h59m50s",
+}
+
+
+class FakeLapi:
+    """Answers the LAPI calls of the machine and the bouncer, and AppSec's, as CrowdSec v1.8.2
+    does."""
+
+    def __init__(self) -> None:
+        self.decisions: list[dict[str, Any]] = [dict(COMMUNITY_BAN)]
+        self.added: list[dict[str, Any]] = []
+        self.listing_fails = False
+        self.appsec_refuses = False
+
+    def answer(self, method: str, path: str, body: Any, headers: Message) -> tuple[int, Any]:
+        if path == "/v1/decisions":
+            ok = headers.get("X-Api-Key") == BOUNCER_KEY
+            return (200, None) if ok else (403, {"message": "access forbidden"})
+        if path == "/":
+            if self.appsec_refuses or headers.get("X-Crowdsec-Appsec-Api-Key") != BOUNCER_KEY:
+                return 401, ""
+            return 200, {"action": "allow", "http_status": 200}
+        auth = headers.get("Authorization", "")
+        if path == "/v1/watchers/login":
+            ok = body == {"machine_id": MACHINE_ID, "password": MACHINE_PASSWORD}
+            return (200, {"token": TOKEN}) if ok else (401, {"message": "incorrect Username"})
+        if auth != f"Bearer {TOKEN}":
+            return 401, {"message": "no token"}
+        if method == "GET":
+            if self.listing_fails:
+                return 500, {"message": "listing timed out"}
+            return 200, [{"created_at": PULLED_AT, "decisions": self.decisions}]
+        if method == "POST":
+            self.added += body
+            return 201, ["1"]
+        decision_id = int(path.rsplit("/", 1)[1])
+        if decision_id not in [d["id"] for d in self.decisions]:
+            return 500, {"message": "decision with id 99 not found"}
+        self.decisions = [d for d in self.decisions if d["id"] != decision_id]
+        return 200, {"nbDeleted": "1"}
+
+
+@pytest.fixture
+def lapi() -> Iterator[tuple[FakeLapi, str]]:
+    """A fake LAPI on a random loopback port, and its URL."""
+    fake = FakeLapi()
+
+    class Handler(BaseHTTPRequestHandler):
+        def _handle(self) -> None:
+            length = int(self.headers.get("Content-Length") or 0)
+            body = json.loads(self.rfile.read(length)) if length else None
+            path = self.path.split("?", 1)[0]
+            status, answer = fake.answer(self.command, path, body, self.headers)
+            data = json.dumps(answer).encode()
+            self.send_response(status)
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        do_GET = do_POST = do_DELETE = _handle
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    yield fake, f"http://127.0.0.1:{server.server_port}"
+    server.shutdown()
+    server.server_close()
+
+
+def enable_crowdsec(
+    data_dir: Path,
+    lapi_url: str,
+    password: str = MACHINE_PASSWORD,
+    bouncer_key: str = BOUNCER_KEY,
+    appsec: bool = False,
+) -> None:
+    """Turn CrowdSec on at `lapi_url`. With `appsec`, AppSec is the fake at the same address."""
+    with (data_dir / "config" / "config.yaml").open("a") as config:
+        config.write(f"crowdsec:\n  enabled: true\n  lapi_url: {lapi_url}\n")
+        config.write("  syslog: 127.0.0.1:5140\n")
+        if appsec:
+            config.write(f"  appsec: true\n  appsec_url: {lapi_url}\n")
+    with (data_dir / "secrets" / "secrets.yaml").open("a") as secrets:
+        secrets.write(f"crowdsec:\n  machine_id: {MACHINE_ID}\n  machine_password: {password}\n")
+        secrets.write(f"  bouncer_key: {bouncer_key}\n")
