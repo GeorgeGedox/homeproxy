@@ -53,6 +53,19 @@ If `ddns_record` already has one A record that you made, HomeProxy does not chan
 
 The page shows no Adopt button when the name holds records that adoption cannot fix: a CNAME, more than one hand-made A record, or a HomeProxy record next to a hand-made one. Clean up the records in Cloudflare until one A record is left.
 
+## A proxy you turned on by hand
+
+If you turn on the proxy for a route's record in Cloudflare, and HomeProxy does not proxy the route through Cloudflare, HAProxy logs the address of Cloudflare's edge. The logs, GeoIP and CrowdSec then do not see the visitor's address.
+
+HomeProxy finds this in the logged client addresses, also when the integration is off. If a route gets a request from an address in `cloudflare.lst`, Overview shows a warning under **Needs attention**. The route's edit page shows the same warning.
+
+To fix it, do one of these steps:
+
+- In the route, turn on **Cloudflare DNS record** and set **Cloudflare proxy** to "Proxied through Cloudflare". Then apply. The integration must be on.
+- In Cloudflare, turn off the proxy for the record.
+
+The warning stays for 24 hours after the last request from Cloudflare's edge. When you apply the route with the proxy on, the warning goes at once. HomeProxy keeps these requests in memory only, so a restart of the dashboard clears the warning. `/status` lists these routes in `cloudflare_unmarked`.
+
 ## Things to know
 
 - **Renaming `ddns_record`** creates a new DDNS record on the new name. The old owned record stays in Cloudflare. Delete it there yourself once nothing points at it.

@@ -5,6 +5,8 @@ interface Mock {
   /** The last certificate issue failed. */
   issueFailed?: boolean;
   versionCheck?: Record<string, unknown>;
+  /** Routes that got requests from a Cloudflare edge address without being marked proxied. */
+  cloudflareUnmarked?: string[];
 }
 
 /**
@@ -18,7 +20,7 @@ async function mockApi(page: Page, mock: Mock = {}): Promise<void> {
     "/changes": { changes: [], summary: [], conflict: false, conflicting_paths: [], config_diff: "", generated_diff: "", generated_error: null },
     "/status": {
       haproxy_version: "3.4.7", haproxy_error: null, haproxy_uptime_seconds: 60, version_check: mock.versionCheck ?? null, update_check: null,
-      update_check_configured: false, bouncer: "up", dns_listening: true, dns_uptime_seconds: 7200, last_apply: null,
+      update_check_configured: false, bouncer: "up", dns_listening: true, dns_uptime_seconds: 7200, last_apply: null, cloudflare_unmarked: mock.cloudflareUnmarked ?? [],
       routes: [{ name: "app", status: "UP", requests: 0, responses_5xx: 0 }],
     },
     "/security/decisions/counts": { bans: 2, captchas: 0, blocklist: 1204, blocklist_updated_at: "2026-11-20T10:00:00Z" },
@@ -53,4 +55,11 @@ test("the overview shows the latest HAProxy LTS patch and the LTS end date", asy
   await mockApi(page, { versionCheck: { running: "3.4.7", branch: "3.4", latest: "3.4.9", eol: "2031-04-01", checked_at: "2026-11-10T00:00:00Z" } });
   await page.goto("/");
   await expect(page.getByText("Latest 3.4.9 · LTS until Apr 2031")).toBeVisible();
+});
+
+test("a route that Cloudflare proxies by hand shows a warning that links to the route", async ({ page }) => {
+  await mockApi(page, { cloudflareUnmarked: ["app"] });
+  await page.goto("/");
+  await page.getByRole("link", { name: "app.example.com gets requests through Cloudflare's proxy, so the logs, GeoIP and CrowdSec see Cloudflare's address. Turn on its Cloudflare DNS record, proxied through Cloudflare." }).click();
+  await expect(page).toHaveURL(/\/routes\/edit\?name=app$/);
 });

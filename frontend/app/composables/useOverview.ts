@@ -86,6 +86,10 @@ export function useOverview() {
     ...(data.value?.certificates ?? []).filter((cert) => cert.state !== "ok").map((cert): Attention => ({
       tone: cert.state === "alert" ? "down" : "unknown", text: `Certificate ${cert.name}: ${daysLeft(cert.days_left)}`, to: "/domains",
     })),
+    ...(status.value?.cloudflare_unmarked ?? []).map((name): Attention => {
+      const route = data.value?.routes?.find((r) => r.name === name);
+      return { tone: "unknown", text: `${route ? routeTarget(route) : name} ${cloudflareUnmarkedAdvice}`, to: `/routes/edit?name=${encodeURIComponent(name)}` };
+    }),
     ...failedJobs(data.value?.jobs ?? []),
   ]);
 
