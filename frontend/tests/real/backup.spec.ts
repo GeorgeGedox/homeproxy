@@ -18,8 +18,10 @@ test("the backup token is shown once, replaced and removed only after a confirma
   await signIn(page, stack);
   await page.goto("/settings/backup");
   const region = page.getByRole("region", { name: "Backup token" });
-  await expect(region).toContainText("No backup token is set.");
-  await expect(region).toContainText("--cacert homeproxy.pem");
+  const state = region.getByTestId("backup-token-state");
+  await expect(state).toHaveText("Not set");
+  await region.getByRole("button", { name: "Nightly script" }).click();
+  await expect(region.getByText("--cacert homeproxy.pem")).toBeVisible();
   await expect(region).not.toContainText("--insecure");
 
   await region.getByRole("button", { name: "Create token" }).click();
@@ -29,7 +31,7 @@ test("the backup token is shown once, replaced and removed only after a confirma
 
   // The token is gone after a reload, and only its state shows.
   await page.reload();
-  await expect(region).toContainText("A backup token is set");
+  await expect(state).toContainText("created");
   await expect(region.getByTestId("backup-token")).toHaveCount(0);
 
   // Replace asks first. Cancel keeps the old token.
@@ -51,6 +53,6 @@ test("the backup token is shown once, replaced and removed only after a confirma
 
   await region.getByRole("button", { name: "Remove token" }).click();
   await page.getByRole("dialog", { name: "Remove the backup token?" }).getByRole("button", { name: "Remove token" }).click();
-  await expect(region).toContainText("No backup token is set.");
+  await expect(state).toHaveText("Not set");
   expect((await download(second)).status()).toBe(401);
 });

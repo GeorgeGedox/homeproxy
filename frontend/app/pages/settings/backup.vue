@@ -7,7 +7,6 @@
       <div class="flex flex-col gap-4 md:flex-row md:gap-8">
         <SettingsNav current="backup" />
         <div class="min-w-0 max-w-3xl flex-1 space-y-4">
-          <p class="text-sm text-muted">These are saved at once, never staged.</p>
           <SettingsBackup />
           <SettingsBackupToken />
         </div>

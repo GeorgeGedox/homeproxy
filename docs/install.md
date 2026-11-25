@@ -154,6 +154,8 @@ A script can download the backup with a backup token. The token works for the ba
 
 To make a new token, click **Replace token**. The old token stops working at once. To stop all downloads by script, click **Remove token**.
 
+Under **Nightly script**, the page shows the commands below with the address of your dashboard.
+
 The dashboard certificate is self-signed. Save it once, and compare its fingerprint with the one in the container log:
 
 ```sh
