@@ -23,11 +23,11 @@ The image includes the CrowdSec SPOA bouncer. It bans clients and shows them a c
    ```
 
    `-f -` prints the login and the password. Without it, the command writes them to the credentials file of the engine.
-3. In the dashboard, open **Settings** and select **CrowdSec**. For each of **Bouncer key**, **Machine ID** and **Machine password**, press **Add**, enter the value and press **Save key**. Use the value of `CROWDSEC_BOUNCER_KEY`, `homeproxy-ui` and the printed password. A key is saved at once.
-4. Turn on the **CrowdSec** switch. Set **CrowdSec API URL** to `http://127.0.0.1:18080`. Set **CrowdSec syslog address** to `127.0.0.1:15140`. Press **Stage changes**, then press **Apply** in the bar at the bottom.
+3. In the dashboard, open **Settings** and select **CrowdSec**. For each of **Bouncer key**, **Machine ID** and **Machine password**, click **Add**, enter the value and click **Save key**. Use the value of `CROWDSEC_BOUNCER_KEY`, `homeproxy-ui` and the printed password. A key is saved at once.
+4. Turn on the **CrowdSec** switch. Set **CrowdSec API URL** to `http://127.0.0.1:18080`. Set **CrowdSec syslog address** to `127.0.0.1:15140`. Click **Stage changes**, then click **Apply** in the bar at the bottom.
 5. Check the setup:
    - The CrowdSec section shows "Bouncer up" after a few seconds.
-   - Press **Test connection** in that section. See [Connection test](#connection-test).
+   - Click **Test connection** in that section. See [Connection test](#connection-test).
    - The **Security** page lists the decisions, if there are any.
    - After some traffic, run `docker compose exec crowdsec cscli metrics show acquisition parsers`. It shows lines read from `syslog` and parsed by `crowdsecurity/haproxy-logs`.
 
@@ -128,7 +128,7 @@ The dashboard lists, adds and deletes CrowdSec decisions through the LAPI at `cr
 
 ## Allowlist
 
-CrowdSec never checks the addresses and ranges on the allowlist. HAProxy keeps the list itself, in `allow.lst`, so a decision cannot block them. To change the list, open **Security**. In **Always allowed**, enter an address or range and press **Allow**. Press the x button on an entry to remove it. In `config.yaml`, the list is `crowdsec.allowlist`.
+CrowdSec never checks the addresses and ranges on the allowlist. HAProxy keeps the list itself, in `allow.lst`, so a decision cannot block them. To change the list, open **Security**. In **Always allowed**, enter an address or range and click **Allow**. To remove an entry, click its x button. In `config.yaml`, the list is `crowdsec.allowlist`.
 
 An allowlist change from the dashboard takes effect at once, with no apply. HomeProxy saves it to `config.yaml`, changes the list in the running HAProxy and writes it to the live release, so it stays after a reload or a restart. An address is listed once, so `203.0.113.7` and `203.0.113.7/32` are the same entry. The change also adds a History entry, unless `/data/config` has a hand edit that is not applied yet (see [History and rollback](changes-and-apply.md#history-and-rollback)). Restoring an older snapshot brings back the allowlist it holds.
 
@@ -144,7 +144,7 @@ The AppSec component of CrowdSec blocks known attacks, such as a probe for `/.en
 
 1. Change the engine container for AppSec. See [Engine container for AppSec](#engine-container-for-appsec).
 2. In **Settings**, in the **CrowdSec** section, turn on **AppSec (WAF)**. Set **AppSec URL** only if you need it.
-3. Press **Stage changes**, then press **Apply**.
+3. Click **Stage changes**, then click **Apply**.
 
 In `config.yaml`:
 

@@ -21,7 +21,7 @@ Add your domain (step 7 of the install). HomeProxy issues the wildcard certifica
 
 ## 2. Recreate the routes
 
-For each backend of the old config, open **Routes** and press **Add site**. Use the table to fill the editor. [Route types](route-types.md) describes each field.
+For each backend of the old config, open **Routes** and click **Add site**. Use the table to fill the editor. [Route types](route-types.md) describes each field.
 
 | In your `haproxy.cfg` | In HomeProxy |
 | --- | --- |
@@ -38,7 +38,7 @@ For each backend of the old config, open **Routes** and press **Add site**. Use 
 
 HomeProxy handles these itself, so leave them out: the HTTP to HTTPS redirect, HSTS, certificate files and `crt` lines, timeouts, and the real client address on routes Cloudflare proxies. HomeProxy trusts `CF-Connecting-IP` only on those routes, so let HomeProxy manage their Cloudflare records (see [Real client IP behind Cloudflare](real-client-ip.md)).
 
-Press **Stage change** in the editor for each route. Then press **Apply** in the bar at the bottom. See [Pending changes, apply and history](changes-and-apply.md). **Overview** shows a route as up when its upstream answers.
+Click **Stage change** in the editor for each route. Then click **Apply** in the bar at the bottom. See [Pending changes, apply and history](changes-and-apply.md). **Overview** shows a route as up when its upstream answers.
 
 ## 3. Test with Host headers
 
@@ -53,7 +53,7 @@ Check the status code and the certificate. For a LAN-only route, check for a `40
 ## 4. Move to ports 80 and 443
 
 1. Stop the old HAProxy. The ports must be free before HomeProxy can bind them.
-2. In **Settings**, select **Network**. Set **HTTP port** to `80` and **HTTPS port** to `443`. Press **Stage changes**, then press **Apply**. In `config.yaml`, the keys are `network.http_port` and `network.https_port`.
+2. In **Settings**, select **Network**. Set **HTTP port** to `80` and **HTTPS port** to `443`. Click **Stage changes**, then click **Apply**. In `config.yaml`, the keys are `network.http_port` and `network.https_port`.
 3. If apply fails with `HAProxy refused the new release` and `Address already in use`, something still holds the port. The old release stays live on the spare ports, and the change stays pending. Find the program with `ss -ltnp` and stop it, then apply again.
 4. If the old HAProxy ran on another machine, change the router's port forward to `192.168.1.10`. If it ran on this machine, nothing in the router changes.
 5. Point the LAN resolver at the HomeProxy DNS server for your zones ([Internal DNS server](internal-dns.md)).

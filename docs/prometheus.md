@@ -9,7 +9,7 @@ To turn on the exporter:
 1. Open **Settings** and select **Prometheus**.
 2. Turn on **Prometheus exporter**.
 3. Enter **Prometheus listen address**, for example `192.168.1.10:8405`.
-4. Press **Stage changes**, then press **Apply**.
+4. Click **Stage changes**, then click **Apply**.
 
 For a hand edit, use `config.yaml`:
 

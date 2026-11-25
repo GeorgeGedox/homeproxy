@@ -7,13 +7,13 @@ HomeProxy can send a message to Discord or to any webhook receiver when somethin
 To add a target:
 
 1. Open **Settings** and select **Notifications**.
-2. Press **Add target**.
+2. Click **Add target**.
 3. Enter a **Target name**. Select a **Target type**: `discord` or `webhook`.
 4. In **Events**, select the events that the target gets. A new target gets every event. See [Events](#events).
-5. Press **Stage changes**, then press **Apply**.
+5. Click **Stage changes**, then click **Apply**.
 6. Set the URL of the target. See [URLs are secrets](#urls-are-secrets).
 
-To remove a target, press **Remove target**, then stage and apply the change.
+To remove a target, click **Remove target**, then stage and apply the change.
 
 In `config.yaml` and `secrets.yaml`:
 
@@ -53,7 +53,7 @@ The targets are part of the settings. Change them in the dashboard, or with `PUT
 
 Anyone with a webhook URL can post to your channel. HomeProxy shows a URL never, so you write it once.
 
-In the dashboard, the URL field of a target shows after you stage the target. Press **Add** (or **Replace**), enter the URL and press **Save URL**. A URL is saved at once, with no apply. Press **Clear** to remove it. If you rename or remove a target, its URL stays. The dashboard then shows "A URL is left over for" the old name. Press **Clear** in that message to remove the URL.
+In the dashboard, the URL field of a target shows after you stage the target. Click **Add** (or **Replace**), enter the URL and click **Save URL**. A URL is saved at once, with no apply. Click **Clear** to remove it. If you rename or remove a target, its URL stays. The dashboard then shows "A URL is left over for" the old name. Click **Clear** in that message to remove the URL.
 
 Through the API:
 
@@ -66,7 +66,7 @@ Through the API:
 
 ## Test a target
 
-Press **Test** next to the URL of a target. The dashboard shows the answer of the receiver. The test uses the targets with your pending changes, so you can test a target before you apply it.
+Click **Test** next to the URL of a target. The dashboard shows the answer of the receiver. The test uses the targets with your pending changes, so you can test a target before you apply it.
 
 Through the API, `POST /api/v1/notifications/targets/<name>/test` sends one sample message and returns the receiver's answer: `{"status": 204, "error": null}`, or `{"status": null, "error": "..."}` when no answer arrived.
 
@@ -76,10 +76,10 @@ HomeProxy cannot send a message when the host, the container or HAProxy is down.
 
 To turn it on, open **Settings**, select **Notifications** and do these steps:
 
-1. Press **Add** next to **Heartbeat URL**, enter the ping URL and press **Save URL**. Do this first: HomeProxy refuses to turn the heartbeat on without a URL.
+1. Click **Add** next to **Heartbeat URL**, enter the ping URL and click **Save URL**. Do this first: HomeProxy refuses to turn the heartbeat on without a URL.
 2. Turn on **Heartbeat**. Set **Heartbeat interval**, for example `1m`. The interval is at least `30s`.
-3. Press **Stage changes**, then press **Apply**.
-4. Press **Test** next to **Heartbeat URL** to send one ping. It works when the heartbeat is off too.
+3. Click **Stage changes**, then click **Apply**.
+4. Click **Test** next to **Heartbeat URL** to send one ping. It works when the heartbeat is off too.
 
 In `config.yaml` and `secrets.yaml`:
 
