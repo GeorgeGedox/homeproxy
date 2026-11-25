@@ -232,7 +232,8 @@ def test_show_stat_reports_status_and_counters(live: LiveHAProxy) -> None:
     assert rows["pool", "BACKEND"].type is ProxyType.BACKEND
     assert rows["pool", "BACKEND"].status == "UP"
     assert rows["pool", "alive"].type is ProxyType.SERVER
-    assert rows["pool", "dead"].check_status == "L4CON"
+    # HAProxy marks a check that is running with "* ".
+    assert rows["pool", "dead"].check_status.lstrip("* ") == "L4CON"
 
 
 # ---- runtime maps ----
