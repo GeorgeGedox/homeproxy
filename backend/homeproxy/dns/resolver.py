@@ -115,10 +115,10 @@ class Resolver:
         """Pass the query to each upstream in turn and return the first answer unchanged."""
         upstreams = self.snapshot.forward_to
         if client in upstreams:
-            # AdGuard sends the zone here, so forwarding back to it would loop forever.
+            # The LAN resolver sends the zone here, so forwarding back to it would loop forever.
             logger.warning(
                 "not forwarding: the client %s is also in forward_unknown_to. "
-                "Remove AdGuard from the DNS server's upstreams",
+                "Remove your LAN resolver, such as AdGuard Home, from the DNS server's upstreams",
                 client,
             )
             return _reply(request, dns.rcode.SERVFAIL)

@@ -6,13 +6,15 @@ HomeProxy runs a small DNS server for the zones in your domains. It gives LAN cl
 
 Set your LAN resolver to send each of your zones to the address in **DNS server address**. Keep its other upstreams.
 
-The **DNS** page shows one line for each zone in the AdGuard Home format. Click **Copy** and paste the lines into the upstream DNS servers of AdGuard Home:
+The **DNS** page shows one line for each zone in two formats. Use the format that your resolver reads.
+
+For AdGuard Home, click **Copy for AdGuard Home**. Paste the lines into the upstream DNS servers of AdGuard Home:
 
 ```text
 [/example.com/]192.168.1.10:5335
 ```
 
-Pi-hole and other resolvers that use dnsmasq use this format:
+For Pi-hole and other resolvers that use dnsmasq, click **Copy for dnsmasq or Pi-hole**. Add the lines to the dnsmasq configuration of the resolver:
 
 ```text
 server=/example.com/192.168.1.10#5335

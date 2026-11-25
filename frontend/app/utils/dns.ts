@@ -39,3 +39,13 @@ export function dnsNames(routes: Route[], extra: DnsRecord[], lanIp: string, liv
     return { name, ...next, state: "staged", ...(now && { was: now }) };
   });
 }
+
+/** The forwarding lines for every zone: AdGuard Home upstream syntax, and dnsmasq syntax (used by Pi-hole). `listen` is `ip:port`. */
+export function forwardingLines(zones: string[], listen: string): { adguard: string; dnsmasq: string } {
+  const at = listen.lastIndexOf(":");
+  const dnsmasqListen = at < 0 ? listen : `${listen.slice(0, at)}#${listen.slice(at + 1)}`;
+  return {
+    adguard: zones.map((zone) => `[/${zone}/]${listen}`).join("\n"),
+    dnsmasq: zones.map((zone) => `server=/${zone}/${dnsmasqListen}`).join("\n"),
+  };
+}
