@@ -66,7 +66,7 @@ These rules are settled. Do not change them without a new decision from the main
 - HomeProxy changes or deletes only the Cloudflare records that have its ownership marker. A hand-made record changes only after the admin adopts it.
 - Certificates use DNS-01 through lego, with any lego DNS provider except `exec`. Cloudflare records and DDNS need a Cloudflare zone.
 - The UI can edit every setting in `config.yaml` and `secrets.yaml`, and a new setting ships with its UI. The exceptions are `version`, `session_key`, `haproxy.track_branch` and `network.ipv6`.
-- The API never returns a secret. It returns only whether a secret is set.
+- The API never returns a secret. It returns only whether a secret is set. The two exceptions are the backup download and the backup token, which is shown once when it is made.
 - GeoIP blocks countries. HAProxy holds only the ranges of the countries that are blocked somewhere.
 - The UI has a dark theme only, and it makes no request outside its origin.
 - HomeProxy listens and answers DNS on IPv4 only. It tracks the newest HAProxy LTS.
@@ -94,7 +94,7 @@ Each command is one executable file in `mise-tasks/`.
 
 1. Never build a shell command from user input. Run `haproxy`, `lego` and `git` with fixed argument lists through `homeproxy.util.run`.
 2. User values reach generated HAProxy files only through strict validators and the escaping filter.
-3. Never log or return secrets. Anything from `secrets.yaml` is redacted in logs, API responses, errors and diffs. Generated files that hold hashes never appear in the UI.
+3. Never log or return secrets. Anything from `secrets.yaml` is redacted in logs, API responses, errors and diffs, except in the backup download (see Design rules). Generated files that hold hashes never appear in the UI.
 4. Never hard-code a user's domain, IP or port. Examples use `example.com` and `192.168.1.10`. Fixed values of the product, such as a default port or a public service URL, are named constants.
 5. Keep HAProxy independent: no code path may stop HAProxy because the dashboard failed.
 6. All file writes are atomic: temp file in the same directory, `fsync`, rename.
