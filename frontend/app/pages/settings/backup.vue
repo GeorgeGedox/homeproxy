@@ -9,6 +9,7 @@
         <div class="min-w-0 max-w-3xl flex-1 space-y-4">
           <SettingsBackup />
           <SettingsBackupToken />
+          <SettingsBackupRestore />
         </div>
       </div>
     </template>

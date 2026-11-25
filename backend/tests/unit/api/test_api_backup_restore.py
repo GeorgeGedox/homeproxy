@@ -3,6 +3,7 @@ nothing and leaves the setup token usable."""
 
 import io
 import tarfile
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -11,10 +12,12 @@ import uvicorn
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from homeproxy.auth.passwords import hash_password
 from homeproxy.auth.runtime import ensure_session_key, get_runtime
 from homeproxy.auth.server import BOOTSTRAP_ENV
+from homeproxy.auth.tls import create_certificate
 from homeproxy.store import Store
-from tests.unit.api.conftest import PASSWORD
+from tests.unit.api.conftest import CONFIG, PASSWORD, make_client
 from tests.unit.api.test_api_backup import fill
 from tests.unit.api.test_api_setup import detect, setup_mode
 
@@ -83,6 +86,11 @@ def fresh(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tuple[TestClient, 
     return test, token, root
 
 
+def new_key(text: str) -> str:
+    """The `session_key` line of a `secrets.yaml` text."""
+    return next(line for line in text.splitlines() if line.startswith("session_key"))
+
+
 def restore(test: TestClient, token: str, body: bytes) -> int:
     """POST an archive and return the status."""
     response = test.post("/api/v1/setup/restore", content=body, headers={HEADER: token})
@@ -105,7 +113,11 @@ def test_a_backup_restores_with_its_routes_password_and_certificate(
     assert restore(test, token, archive(base(source))) == 204
 
     assert (root / "config" / "routes" / "app.yaml").read_text() == source["route"]
-    assert (root / "secrets" / "secrets.yaml").read_text() == source["secrets"]
+    restored = (root / "secrets" / "secrets.yaml").read_text()
+    assert restored != source["secrets"], "the session key is new"
+    assert restored.replace(new_key(restored), "") == source["secrets"].replace(
+        new_key(source["secrets"]), ""
+    )
     assert (root / "tls" / "dashboard.pem").read_text() == "restored certificate"
     assert oct((root / "secrets").stat().st_mode & 0o777) == "0o700"
     assert oct((root / "secrets" / "secrets.yaml").stat().st_mode & 0o777) == "0o600"
@@ -244,7 +256,7 @@ def test_a_file_that_is_not_an_archive_is_refused(
 @pytest.mark.parametrize(
     ("cap", "value"),
     [
-        pytest.param("homeproxy.api.backup_restore.MAX_UPLOAD_BYTES", 100, id="upload"),
+        pytest.param("homeproxy.api.backup_upload.MAX_UPLOAD_BYTES", 100, id="upload"),
         pytest.param("homeproxy.backup.extract.MAX_EXTRACTED_BYTES", 100, id="extracted"),
         pytest.param("homeproxy.backup.extract.MAX_MEMBERS", 2, id="members"),
     ],
@@ -276,8 +288,213 @@ def test_an_upload_without_a_length_is_capped_while_it_streams(
     test, token, root = fresh
     body = archive(base(source))
     before = listing(root)
-    monkeypatch.setattr("homeproxy.api.backup_restore.MAX_UPLOAD_BYTES", 100)
+    monkeypatch.setattr("homeproxy.api.backup_upload.MAX_UPLOAD_BYTES", 100)
     chunks = (body[i : i + 50] for i in range(0, len(body), 50))
     response = test.post("/api/v1/setup/restore", content=chunks, headers={HEADER: token})
     assert response.status_code == 413
     assert listing(root) == before
+
+
+OLD_PASSWORD = "the password before the restore"  # noqa: S105
+SNAPSHOT = "history/20261110T110600123456Z/meta.json"
+MADE = 1_700_000_000
+
+
+@pytest.fixture
+def live(tmp_path: Path) -> tuple[TestClient, Path]:
+    """A set-up install, logged in, with its own password and listen address, a certificate,
+    a snapshot, an ACME file and a staged edit that a backup does not have."""
+    root = tmp_path / "live"
+    config = CONFIG.format(password_hash=hash_password(OLD_PASSWORD))
+    files = {
+        "config/config.yaml": config.replace("192.168.1.10:8443", "192.168.1.10:9443"),
+        "secrets/secrets.yaml": f'version: 1\nsession_key: "{"A" * 43}="\n',
+        "certs/old.example.com.pem": "old certificate",
+        "history/20250101T000000000000Z/meta.json": "{}",
+        "acme/account.json": "old account",
+        "pending/config.yaml": "staged: edit",
+    }
+    for name, text in files.items():
+        (root / name).parent.mkdir(parents=True, exist_ok=True)
+        (root / name).write_text(text)
+    (root / "acme").chmod(0o700)
+    test = make_client(root)
+    login = {"password": OLD_PASSWORD}
+    assert test.post("/api/v1/auth/login", json=login).status_code == 204
+    return test, root
+
+
+def full_backup(source: dict[str, str]) -> bytes:
+    """A backup with a certificate, two snapshots and member times."""
+    chain = create_certificate([]).decode()
+    members = [
+        *base(source),
+        file_member("certs/example.com.pem", chain[chain.index("-----BEGIN CERTIFICATE") :]),
+        file_member(SNAPSHOT, "{}"),
+        file_member("history/20261111T110600123456Z/meta.json", "{}"),
+    ]
+    for offset, (info, _) in enumerate(members):
+        info.mtime = MADE + offset
+    return archive(members)
+
+
+def test_a_check_describes_the_backup_and_changes_nothing(
+    fresh: tuple[TestClient, str, Path], source: dict[str, str]
+) -> None:
+    test, token, root = fresh
+    before = listing(root)
+
+    response = test.post(
+        "/api/v1/setup/restore/check", content=full_backup(source), headers={HEADER: token}
+    )
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "made_at": datetime.fromtimestamp(MADE + 6, UTC).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "config_version": 1,
+        "migrated": False,
+        "routes": 1,
+        "domains": ["example.com"],
+        "certificates": 1,
+        "snapshots": 2,
+        "password_set": True,
+        "backup_token_set": False,
+    }
+    assert listing(root) == before, "no staging directory stays, and nothing moved"
+    assert restore(test, token, archive(base(source))) == 204, "the token is not used up"
+
+
+def test_a_check_with_a_wrong_token_counts_toward_the_throttle(
+    fresh: tuple[TestClient, str, Path], source: dict[str, str]
+) -> None:
+    test, token, _ = fresh
+    body = archive(base(source))
+    wrong = {HEADER: "wrong"}
+    codes = [
+        test.post("/api/v1/setup/restore/check", content=body, headers=wrong) for _ in range(5)
+    ]
+    assert [code.status_code for code in codes] == [403] * 5
+    assert restore(test, token, body) == 429
+
+
+@pytest.mark.parametrize(
+    ("body", "status", "code"),
+    [
+        pytest.param(b"not gzip", 422, "not_a_backup", id="not-an-archive"),
+        pytest.param(
+            archive([file_member("hooks/x", "x")]), 422, "backup_member_refused", id="bad-member"
+        ),
+    ],
+)
+@pytest.mark.parametrize("route", ["setup", "session"])
+def test_both_checks_refuse_what_the_restore_refuses(
+    fresh: tuple[TestClient, str, Path],
+    live: tuple[TestClient, Path],
+    route: str,
+    body: bytes,
+    status: int,
+    code: str,
+) -> None:
+    if route == "setup":
+        test, token, _ = fresh
+        response = test.post("/api/v1/setup/restore/check", content=body, headers={HEADER: token})
+    else:
+        response = live[0].post("/api/v1/backup/check", content=body)
+    assert response.status_code == status
+    assert response.json()["error"]["code"] == code
+
+
+def test_the_session_check_is_over_the_upload_cap_too_large(
+    live: tuple[TestClient, Path], source: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr("homeproxy.api.backup_upload.MAX_UPLOAD_BYTES", 100)
+    response = live[0].post("/api/v1/backup/check", content=archive(base(source)))
+    assert response.status_code == 413
+
+
+def test_a_session_check_leaves_the_install_as_it_is(
+    live: tuple[TestClient, Path], source: dict[str, str]
+) -> None:
+    test, root = live
+    before = listing(root)
+    response = test.post("/api/v1/backup/check", content=full_backup(source))
+    assert response.status_code == 200
+    assert response.json()["routes"] == 1
+    assert listing(root) == before
+
+
+def test_a_restore_on_a_set_up_install_takes_everything_from_the_backup(
+    live: tuple[TestClient, Path], source: dict[str, str]
+) -> None:
+    test, root = live
+    server = Mock(spec=uvicorn.Server, should_exit=False)
+    assert isinstance(test.app, FastAPI)
+    get_runtime(test.app).listen_change.serving = server
+    old_key = new_key((root / "secrets" / "secrets.yaml").read_text())
+
+    response = test.post("/api/v1/backup/restore", content=archive(base(source)))
+
+    assert response.status_code == 204
+    assert (root / "config" / "routes" / "app.yaml").read_text() == source["route"]
+    config = (root / "config" / "config.yaml").read_text()
+    assert "listen: 192.168.1.10:9443" in config, "the dashboard keeps its address"
+    keys = {
+        old_key,
+        new_key(source["secrets"]),
+        new_key((root / "secrets" / "secrets.yaml").read_text()),
+    }
+    assert len(keys) == 3, "the restore makes a new session key"
+    for name in (
+        "certs/old.example.com.pem",
+        "history/20250101T000000000000Z",
+        "acme/account.json",
+    ):
+        assert not (root / name).exists(), name
+    for name in ("certs", "history", "acme"):
+        assert list((root / name).iterdir()) == [], f"{name} is empty and still there"
+    assert list((root / "pending").iterdir()) == []
+    assert oct((root / "acme").stat().st_mode & 0o777) == "0o700"
+    assert [p for p in root.iterdir() if p.name.startswith(".restore-")] == []
+    assert '"backup.restore"' in (root / "audit" / "audit.jsonl").read_text()
+    assert server.should_exit is True
+    assert test.get("/api/v1/settings").status_code == 401, "the old session ended"
+    old = {"password": OLD_PASSWORD}
+    assert test.post("/api/v1/auth/login", json=old).status_code == 401
+    assert test.post("/api/v1/auth/login", json={"password": PASSWORD}).status_code == 204
+
+
+def test_a_failed_apply_after_a_restore_does_not_skip_the_restart(
+    live: tuple[TestClient, Path], source: dict[str, str], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    test, _ = live
+    server = Mock(spec=uvicorn.Server, should_exit=False)
+    assert isinstance(test.app, FastAPI)
+    get_runtime(test.app).listen_change.serving = server
+
+    def broken(_: object) -> None:
+        raise RuntimeError("apply broke")
+
+    monkeypatch.setattr("homeproxy.api.backup_upload.apply", broken)
+    assert test.post("/api/v1/backup/restore", content=archive(base(source))).status_code == 204
+    assert server.should_exit is True
+
+
+def test_a_refused_restore_on_a_set_up_install_changes_nothing(
+    live: tuple[TestClient, Path],
+) -> None:
+    test, root = live
+    before = listing(root)
+    response = test.post("/api/v1/backup/restore", content=b"not gzip")
+    assert response.status_code == 422
+    assert listing(root) == before
+    assert test.get("/api/v1/settings").status_code == 200, "the session is still good"
+
+
+@pytest.mark.parametrize("path", ["/api/v1/backup/check", "/api/v1/backup/restore"])
+def test_the_session_routes_need_a_session_and_the_dashboards_origin(
+    live: tuple[TestClient, Path], path: str
+) -> None:
+    root = live[1]
+    assert make_client(root).post(path, content=b"x").status_code == 401
+    wrong_origin = {"Origin": "https://evil.example"}
+    assert live[0].post(path, content=b"x", headers=wrong_origin).status_code == 403

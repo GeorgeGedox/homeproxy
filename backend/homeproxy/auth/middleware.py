@@ -28,6 +28,7 @@ PUBLIC_API_PATHS = frozenset(
         "/api/v1/setup/status",
         "/api/v1/setup",
         "/api/v1/setup/restore",
+        "/api/v1/setup/restore/check",
         "/api/v1/auth/login",
     }
 )

@@ -10,7 +10,7 @@ from pathlib import Path
 
 from cryptography import x509
 
-from homeproxy.auth.tls import create_certificate, ensure_certificate, fingerprint
+from homeproxy.auth.tls import create_certificate, ensure_certificate, fingerprint, key_pin
 
 
 def _certificate(path: Path) -> x509.Certificate:
@@ -68,3 +68,27 @@ def test_fingerprint_matches_the_certificate(tmp_path: Path) -> None:
         path.read_text()[path.read_text().index("-----BEGIN CERTIFICATE-----") :]
     )
     assert printed.replace(":", "").lower() == hashlib.sha256(der).hexdigest()
+
+
+# A certificate made with openssl. The pin is the output of `openssl x509 -pubkey -noout`, piped
+# to `openssl pkey -pubin -outform der`, `openssl dgst -sha256 -binary` and `base64`.
+OPENSSL_CERTIFICATE = """\
+-----BEGIN CERTIFICATE-----
+MIIBWzCCAQKgAwIBAgIULACA778CsZo6pzMfaUcvtLRGFqAwCgYIKoZIzj0EAwIw
+EzERMA8GA1UEAwwIcGluIHRlc3QwIBcNMjYxMTI1MjE0NzA4WhgPMjEyNjExMDEy
+MTQ3MDhaMBMxETAPBgNVBAMMCHBpbiB0ZXN0MFkwEwYHKoZIzj0CAQYIKoZIzj0D
+AQcDQgAEJHrueQ7ZOzRKeLZPF9AKnwzABv8RWi/sRfL6v1C34+/a8WXD7qQeGRjY
+44sqoy7iRVgM3FgLbH5Od2chFtcRbaMyMDAwHQYDVR0OBBYEFE55mO0TJWBLfcdZ
+RoFAYmSYtdwlMA8GA1UdEwEB/wQFMAMBAf8wCgYIKoZIzj0EAwIDRwAwRAIgZenB
+YKftnZUHY8RFB5tDTzAf4HkHyPExCgnOUe41ajcCIDf6hkXJg+y61xDEZUpP7o+9
+dlIvyVORD31W/sxZW0Ef
+-----END CERTIFICATE-----
+"""
+OPENSSL_PIN = "RZeckx0YfOd1ZdtF3e7mD5YBrrpltxP0vBU1FOTtkf8="
+
+
+def test_key_pin_is_the_value_that_curl_pins(tmp_path: Path) -> None:
+    """The pin equals what the openssl pipeline prints for the same certificate."""
+    path = tmp_path / "dashboard.pem"
+    path.write_text(OPENSSL_CERTIFICATE)
+    assert key_pin(path) == OPENSSL_PIN

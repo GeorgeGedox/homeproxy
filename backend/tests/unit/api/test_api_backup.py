@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 from fastapi.testclient import TestClient
 
+from homeproxy.auth.tls import create_certificate, key_pin
 from homeproxy.backup.layout import EXCLUDED, INCLUDED
 from tests.unit.api.conftest import make_client
 
@@ -90,7 +91,11 @@ def test_a_download_is_audited_with_its_address_and_auth(api: TestClient, lab: P
 
 
 def test_only_the_hash_of_the_token_is_stored(api: TestClient, lab: Path) -> None:
-    assert api.get("/api/v1/backup/token").json() == {"set": False, "created_at": None}
+    assert api.get("/api/v1/backup/token").json() == {
+        "set": False,
+        "created_at": None,
+        "key_pin": None,
+    }
     token = new_token(api)
     status = api.get("/api/v1/backup/token").json()
     assert status["set"] is True
@@ -100,6 +105,16 @@ def test_only_the_hash_of_the_token_is_stored(api: TestClient, lab: Path) -> Non
     assert token not in stored
     assert "backup_token_hash" in stored
     assert oct((lab / "secrets" / "secrets.yaml").stat().st_mode & 0o777) == "0o600"
+
+
+def test_the_status_gives_the_key_pin_of_the_dashboard_certificate(
+    api: TestClient, lab: Path
+) -> None:
+    fill(lab)
+    (lab / "tls" / "dashboard.pem").write_bytes(create_certificate([]))
+    assert api.get("/api/v1/backup/token").json()["key_pin"] == key_pin(
+        lab / "tls" / "dashboard.pem"
+    )
 
 
 def test_the_token_downloads_the_backup_without_making_a_session(
@@ -120,6 +135,8 @@ def test_the_token_downloads_the_backup_without_making_a_session(
         pytest.param("GET", "/api/v1/backup/token", id="token-status"),
         pytest.param("POST", "/api/v1/backup/token", id="token-create"),
         pytest.param("DELETE", "/api/v1/backup/token", id="token-delete"),
+        pytest.param("POST", "/api/v1/backup/check", id="check"),
+        pytest.param("POST", "/api/v1/backup/restore", id="restore"),
         pytest.param("HEAD", "/api/v1/backup", id="head-backup"),
     ],
 )
@@ -139,7 +156,7 @@ def test_a_new_token_replaces_the_old_one_and_delete_removes_it(api: TestClient,
     assert download(script, second) == 200
     assert api.delete("/api/v1/backup/token").status_code == 204
     assert download(make_client(lab), second) == 401
-    assert api.get("/api/v1/backup/token").json() == {"set": False, "created_at": None}
+    assert api.get("/api/v1/backup/token").json()["set"] is False
 
 
 def test_wrong_tokens_are_throttled_even_for_the_right_token(api: TestClient, lab: Path) -> None:

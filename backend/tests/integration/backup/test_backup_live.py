@@ -125,3 +125,39 @@ def test_a_backup_made_with_the_token_restores_on_a_fresh_container(
             f"{fresh.url}/api/v1/backup", headers=script, verify=fresh.verify, timeout=TIMEOUT
         )
         assert again.status_code == 200
+
+
+def test_a_restore_on_a_set_up_container_signs_out_and_takes_the_backups_password(
+    source: tuple[Server, str], test_name_prefix: str
+) -> None:
+    server, cookie = source
+    archive = server.call("GET", "/api/v1/backup", cookie, timeout=TIMEOUT)
+    assert archive.status_code == 200
+
+    new_password = "a password the backup does not have"  # noqa: S105
+    with start_server(f"{test_name_prefix}-backup-target", *SETTINGS) as target:
+        finish_setup(target)
+        login = target.call("POST", "/api/v1/auth/login", json={"password": PASSWORD})
+        old_cookie = session_cookie(login)
+        change = {"current_password": PASSWORD, "new_password": new_password}
+        call(target, old_cookie, "PUT", "/auth/password", json=change)
+        own = target.call("POST", "/api/v1/auth/login", json={"password": new_password})
+        old_cookie = session_cookie(own)
+
+        restored = target.call(
+            "POST",
+            "/api/v1/backup/restore",
+            old_cookie,
+            content=archive.content,
+            timeout=TIMEOUT,
+        )
+        assert restored.status_code == 204, restored.text
+        # The dashboard restarts to load the restored certificate, which is the source's.
+        target.verify = True
+        target.wait_for_start(2)
+
+        assert target.call("GET", "/api/v1/settings", old_cookie).status_code == 401
+        wrong = target.call("POST", "/api/v1/auth/login", json={"password": new_password})
+        assert wrong.status_code == 401
+        right = target.call("POST", "/api/v1/auth/login", json={"password": PASSWORD})
+        assert right.status_code == 204

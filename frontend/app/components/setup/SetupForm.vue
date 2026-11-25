@@ -12,19 +12,12 @@ const found = computed(() => [
 /** The two ways to finish setup. Both use the setup token above them. */
 const ways = [{ label: "New setup", slot: "new" as const }, { label: "Restore from backup", slot: "restore" as const }];
 const restored = ref(false);
-const reload = () => window.location.reload();
 </script>
 
 <template>
   <section v-if="restored" class="space-y-4" aria-label="Backup restored">
     <h1 class="flex items-center gap-2 text-lg text-highlighted"><StatusLed tone="up" />Backup restored</h1>
-    <p class="text-sm text-muted">The dashboard restarts now with the certificate from the backup.</p>
-    <ol class="list-decimal space-y-2 pl-5 text-sm text-highlighted">
-      <li>Wait a few seconds, then reload this page.</li>
-      <li>Your browser warns about the certificate again. Accept it.</li>
-      <li>Log in with the password from the backup.</li>
-    </ol>
-    <UButton block icon="lucide:refresh-cw" label="Reload" @click="reload" />
+    <BackupRestored />
   </section>
   <div v-else class="space-y-4">
     <div class="space-y-1">

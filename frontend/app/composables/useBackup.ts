@@ -39,9 +39,10 @@ export function useBackup() {
     await load();
   }
 
-  async function copy(): Promise<void> {
-    await navigator.clipboard.writeText(token.value);
-    toast.add({ title: "Copied", description: "The backup token is on your clipboard." });
+  /** Copy `text` and say what it is: "backup token" or "key pin". */
+  async function copy(text: string, what: string): Promise<void> {
+    await navigator.clipboard.writeText(text);
+    toast.add({ title: "Copied", description: `The ${what} is on your clipboard.` });
   }
 
   return { status, token, error, busy, load, create, remove, copy };

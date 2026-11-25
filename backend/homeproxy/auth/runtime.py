@@ -227,13 +227,14 @@ class AuthRuntime:
         return not self.configured() and not token_used
 
     @contextmanager
-    def setup_claim(self, peer: str, token: str) -> Iterator[None]:
+    def setup_claim(self, peer: str, token: str, *, consume: bool = True) -> Iterator[None]:
         """Hold the setup token while the caller writes the first config.
 
         Checks, in order: setup is still open (409), the client is in a private range (403), the
         client is not throttled (429) and the token matches and is free (403). A wrong token counts
         as a failed login. If the block raises, the token is released for another try. If it
-        returns, the token is used up. The server keeps running on the address it is on.
+        returns, the token is used up, unless `consume` is false: a check then releases it and
+        leaves the throttle as it is. The server keeps running on the address it is on.
 
         Usage in the setup endpoint: `with runtime.setup_claim(ip, body.token): ...`.
         Write the files under `Store.lock()` inside the block.
@@ -258,6 +259,9 @@ class AuthRuntime:
         except BaseException:
             self.setup_token.release()
             raise
+        if not consume:
+            self.setup_token.release()
+            return
         self.setup_token.finish()
         self.throttle.reset(peer)
         logger.info("setup finished from %s", peer)

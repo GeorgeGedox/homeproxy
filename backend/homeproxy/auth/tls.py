@@ -6,7 +6,9 @@ key and then the certificate, is mode 0600, and is reused on every start. It is 
 when it is missing, unreadable or expired.
 """
 
+import base64
 import datetime
+import hashlib
 import ipaddress
 import logging
 import secrets
@@ -135,3 +137,13 @@ def fingerprint(path: Path) -> str:
     certificates = x509.load_pem_x509_certificates(path.read_bytes())
     digest = certificates[0].fingerprint(hashes.SHA256())
     return ":".join(f"{byte:02X}" for byte in digest)
+
+
+def key_pin(path: Path) -> str:
+    """Return the public key pin of the certificate in `path`: base64 of the SHA-256 of its
+    SubjectPublicKeyInfo. It is the value of `curl --pinnedpubkey "sha256//<pin>"`."""
+    certificate = x509.load_pem_x509_certificates(path.read_bytes())[0]
+    spki = certificate.public_key().public_bytes(
+        serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo
+    )
+    return base64.b64encode(hashlib.sha256(spki).digest()).decode("ascii")

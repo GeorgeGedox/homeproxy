@@ -145,32 +145,32 @@ The browser saves `homeproxy-backup-<version>-<time>.tar.gz`.
 
 ### Back up every night
 
-A script can download the backup with a backup token. The token works for the backup download only.
+A script on a different machine, for example a NAS, can download the backup with a backup token. The token works for the backup download only.
 
 1. Open **Settings**, then **Backup**.
 2. Click **Create token**.
 3. Copy the token. The dashboard shows it once.
-4. Put the token in the variable `HOMEPROXY_BACKUP_TOKEN` of your script.
+4. Click **Use the token**.
+5. Copy the command into your script.
+6. In the command, replace the three values in angle brackets:
+   - `<dashboard address>`: the address and port of the dashboard, for example `192.168.1.10:8443`.
+   - `<token>`: the backup token.
+   - `<key pin>`: the key pin that the page shows. To copy it, click the copy icon next to it.
+
+```sh
+curl --fail --insecure --pinnedpubkey "sha256//<key pin>" \
+  --header "Authorization: Bearer <token>" \
+  --remote-name --remote-header-name \
+  https://<dashboard address>/api/v1/backup
+```
 
 To make a new token, click **Replace token**. The old token stops working at once. To stop all downloads by script, click **Remove token**.
 
-Under **Nightly script**, the page shows the commands below with the address of your dashboard.
+The dashboard certificate is self-signed, so curl cannot check it with a certificate authority. `--insecure` stops that check. `--pinnedpubkey` makes curl compare the public key of the server with the key pin. If the two are different, curl stops before it sends the token, with exit code 90. Thus a device on your LAN that pretends to be the dashboard cannot get the token.
 
-The dashboard certificate is self-signed. Save it once, and compare its fingerprint with the one in the container log:
+Do not use `--insecure` without `--pinnedpubkey`. If your computer trusts the dashboard certificate, remove the two options.
 
-```sh
-openssl s_client -connect 192.168.1.10:8443 </dev/null 2>/dev/null | openssl x509 > homeproxy.pem
-openssl x509 -in homeproxy.pem -noout -fingerprint -sha256
-```
-
-The script then checks every download against the saved certificate. The certificate names `homeproxy`, not the IP address, so `--resolve` points that name to the address of the dashboard:
-
-```sh
-curl --fail --cacert homeproxy.pem --resolve homeproxy:8443:192.168.1.10 \
-  -H "Authorization: Bearer $HOMEPROXY_BACKUP_TOKEN" -OJ https://homeproxy:8443/api/v1/backup
-```
-
-Do not use `--insecure`. Without the certificate check, a device on your LAN that pretends to be the dashboard can get the token.
+The key pin changes when the dashboard makes a new certificate, for example after you delete `/data/tls/dashboard.pem`. Then put the new key pin in the script. A restore brings back the certificate of the backup and its key pin.
 
 To encrypt the archive on the machine that stores it, use `age` or `gpg`. Each command asks for a passphrase:
 
@@ -181,21 +181,44 @@ gpg -c homeproxy-backup-*.tar.gz
 
 A script cannot answer a passphrase prompt. In a script, use `age -r <public key>` or `gpg -e -r <key id>`. Then the machine that stores the backups holds no key that opens them. Delete the plain archive after you encrypt it.
 
-### Restore on a new machine
+### Restore a backup
+
+A restore replaces all of the data of the install with the data of the backup: config, routes, secrets, certificates, the ACME account, the dashboard certificate, history and the audit log. It removes the changes that wait to be applied. The dashboard address does not change.
+
+The password becomes the password of the backup, and all sessions end. If you do not know the password of the backup, [reset the password](dashboard-access.md#reset-the-password) after the restore.
+
+Before a restore, HomeProxy checks the file and shows what it holds. The file does not change the install until you confirm. HomeProxy refuses a file that is not a HomeProxy backup, and a backup from a newer version of HomeProxy. It updates a backup from an older version. Then **File version** shows "from an older HomeProxy, updated on restore".
+
+After the restore, the first apply runs. On a different machine, a value of the old machine can make it fail, for example `network.haproxy_lan_ip`. The failure shows on Overview. Correct the value on the Settings page.
+
+#### Restore on a new machine
 
 1. Do steps 1 to 4 of this page.
 2. Open the setup page, as in step 5.
 3. Enter the setup token from the container log.
 4. Click **Restore from backup**.
-5. Select the `.tar.gz` file.
-6. Click **Restore backup**.
+5. Select the `.tar.gz` file. HomeProxy checks the file.
+6. Make sure that the summary shows the correct backup. If the page shows an error, correct the problem, then click **Check backup**.
+7. Click **Restore backup**.
+8. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+9. Click **Reload**.
+10. If the browser warns about the certificate again, accept the warning.
+11. Log in with the password from the backup.
+
+The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
+
+#### Restore on an install that is set up
+
+1. Open **Settings**, then **Backup**.
+2. Under **Restore backup**, select the `.tar.gz` file. HomeProxy checks the file.
+3. Make sure that the summary shows the correct backup.
+4. Click **Restore backup**.
+5. To keep a copy of the current install, click **Download backup** in the dialog.
+6. Click **Restore backup** in the dialog.
 7. Wait a few seconds. The dashboard restarts with the certificate from the backup.
-8. Click **Reload** and accept the certificate warning again.
-9. Log in with the password from the backup.
-
-The restore replaces setup. It works only on an install that is not set up. The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
-
-The first apply runs after the restore. On a new machine, a value of the old machine can make it fail, for example `network.haproxy_lan_ip`. The failure shows on Overview. Fix the value on the Settings page.
+8. Click **Reload**.
+9. If the browser warns about the certificate, accept the warning.
+10. Log in with the password from the backup.
 
 ### Back up by hand
 
