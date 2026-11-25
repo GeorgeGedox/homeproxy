@@ -18,6 +18,7 @@ from homeproxy.auth.passwords import hash_password
 from homeproxy.auth.runtime import AuthRuntime, set_runtime
 from homeproxy.certs.lego import Lego
 from homeproxy.certs.service import CertificateService
+from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.haproxy.client import HAProxyClient
 from homeproxy.haproxy.pipeline import Pipeline
 from homeproxy.jobs import JobRunner
@@ -92,6 +93,7 @@ def make_client(root: Path, client: str = LAN_CLIENT[0]) -> TestClient:
     app.state.update_check = UpdateCheck(None)
     app.state.collector = LogCollector(root / "run" / "syslog.sock")
     app.state.metrics = MetricsStore(root / "state" / "metrics.db")
+    app.state.appsec = AppsecReading(store)
     return TestClient(app, base_url=ORIGIN, client=(client, 50000), headers={"Origin": ORIGIN})
 
 
@@ -202,13 +204,14 @@ class FakeLapi:
         self.decisions: list[dict[str, Any]] = [dict(COMMUNITY_BAN)]
         self.added: list[dict[str, Any]] = []
         self.listing_fails = False
+        self.appsec_refuses = False
 
     def answer(self, method: str, path: str, body: Any, headers: Message) -> tuple[int, Any]:
         if path == "/v1/decisions":
             ok = headers.get("X-Api-Key") == BOUNCER_KEY
             return (200, None) if ok else (403, {"message": "access forbidden"})
         if path == "/":
-            if headers.get("X-Crowdsec-Appsec-Api-Key") != BOUNCER_KEY:
+            if self.appsec_refuses or headers.get("X-Crowdsec-Appsec-Api-Key") != BOUNCER_KEY:
                 return 401, ""
             return 200, {"action": "allow", "http_status": 200}
         auth = headers.get("Authorization", "")

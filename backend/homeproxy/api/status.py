@@ -14,7 +14,7 @@ from fastapi import APIRouter, Request
 from pydantic import BaseModel, Field
 
 from homeproxy.api.apply import ServicesDep
-from homeproxy.crowdsec.health import appsec_state
+from homeproxy.crowdsec.health import AppsecReading
 from homeproxy.dns.probe import dns_listening, dns_uptime_seconds
 from homeproxy.dns.snapshot import FILE_NAME as DNS_FILE
 from homeproxy.generator import BACKEND_PREFIX
@@ -144,6 +144,7 @@ def status(request: Request, services: ServicesDep) -> Status:
     DNS server is listening and its uptime, the HomeProxy update check, and the last apply."""
     check: VersionCheck = request.app.state.version_check
     update: UpdateCheck = request.app.state.update_check
+    reading: AppsecReading = request.app.state.appsec
     info: HAProxyInfo | None = None
     error: str | None = None
     routes: list[RouteHealth] = []
@@ -154,7 +155,7 @@ def status(request: Request, services: ServicesDep) -> Status:
         error = str(exc)
     store = services.pipeline.store
     try:
-        appsec = appsec_state(store)
+        appsec = reading()
     except (OSError, StoreError) as exc:
         logger.warning("cannot read the CrowdSec settings for the AppSec state: %s", exc)
         appsec = None

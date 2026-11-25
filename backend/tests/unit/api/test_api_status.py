@@ -100,6 +100,22 @@ def test_status_reports_whether_appsec_checks_requests_for_the_bouncer(
     assert api.get("/api/v1/status").json()["appsec"] == state
 
 
+def test_status_reuses_the_appsec_reading_until_the_settings_change(
+    data_dir: Path, lapi: tuple[FakeLapi, str], api: TestClient
+) -> None:
+    """Each page of the dashboard asks for `/status`, and an AppSec that does not answer takes
+    seconds to time out. A save of the settings shows at once."""
+    enable_crowdsec(data_dir, lapi[1], appsec=True)
+    assert api.get("/api/v1/status").json()["appsec"] == "up"
+
+    lapi[0].appsec_refuses = True
+    assert api.get("/api/v1/status").json()["appsec"] == "up"
+
+    secrets = data_dir / "secrets" / "secrets.yaml"
+    secrets.write_text(secrets.read_text())
+    assert api.get("/api/v1/status").json()["appsec"] == "down"
+
+
 def test_status_has_no_last_apply_before_the_first(api: TestClient) -> None:
     """A new install has applied nothing and checked no version yet. With no release source, the
     HomeProxy update check says it is not configured."""

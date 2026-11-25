@@ -6,13 +6,16 @@ registered with the Central API, so the blocklist part reports what the LAPI hol
 
 import json
 import logging
+import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Final, Literal
 
+from homeproxy.auth.dashboard import FileStamp, file_stamp
 from homeproxy.crowdsec.lapi import BLOCKLIST_ORIGINS, LapiClient, LapiError
 from homeproxy.generator.crowdsec import appsec_url
 from homeproxy.models.config import Crowdsec
@@ -23,6 +26,9 @@ from homeproxy.util import http as http_request
 log = logging.getLogger(__name__)
 
 TIMEOUT: Final = 3.0
+APPSEC_TTL: Final = 15.0
+"""How long an AppSec reading holds while the settings do not change. The alert job reads every
+15 s, so the dashboard's `/status` polls reuse its reading."""
 _PROBE_ADDRESS = "192.0.2.1"
 """A documentation address that AppSec checks as the client. It never matches a real one."""
 
@@ -87,6 +93,27 @@ def appsec_state(store: Store) -> Literal["up", "down"] | None:
     except HealthError:
         return "down"
     return "up"
+
+
+class AppsecReading:
+    """`appsec_state`, kept for `APPSEC_TTL` or until `config.yaml` or `secrets.yaml` change, so
+    `/status` polls do not each wait up to `TIMEOUT` on AppSec."""
+
+    def __init__(self, store: Store, clock: Callable[[], float] = time.monotonic) -> None:
+        self._store = store
+        self._clock = clock
+        self._read: tuple[float, FileStamp | None, FileStamp | None] | None = None
+        self._state: Literal["up", "down"] | None = None
+
+    def __call__(self) -> Literal["up", "down"] | None:
+        """Return AppSec's state, probing it again when the reading is old or the settings
+        changed. Raises `StoreError` or `OSError` when the settings cannot be read."""
+        now = self._clock()
+        stamps = (file_stamp(self._store.config_path), file_stamp(self._store.secrets_path))
+        if self._read is None or self._read[1:] != stamps or now - self._read[0] >= APPSEC_TTL:
+            self._state = appsec_state(self._store)
+            self._read = (now, *stamps)
+        return self._state
 
 
 def check_bouncer_key(crowdsec: Crowdsec, bouncer_key: str) -> None:
