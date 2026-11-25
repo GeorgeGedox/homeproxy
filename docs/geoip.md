@@ -4,8 +4,8 @@ HomeProxy blocks countries in HAProxy, and shows the country of every request in
 
 ## In the dashboard
 
-- **Security, Countries card:** pick the countries blocked on every public site, except a site whose list replaces this one. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
-- **A site's settings, Protection:** **Block countries** blocks countries on that site only. The list is labeled "Countries (adds to the global list)". Turn on **Replace the global list** to change the label to "Countries (replaces the global list)". Then only the countries of the site list are blocked on that site. An empty list opens the site to every country.
+- **Security, Countries card:** pick the countries blocked on every public site. A site whose own list replaces the global list does not use it. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
+- **A site's settings, Protection:** **Block countries** blocks countries on that site only. By default, the site list adds to the global list, and its label is "Countries (adds to the global list)". To block only the countries of the site list, turn on **Replace the global list**. The label then changes to "Countries (replaces the global list)". In this mode, an empty site list blocks no country on that site.
 
 Each change is staged and takes effect at the next apply.
 
@@ -15,7 +15,7 @@ Each change is staged and takes effect at the next apply.
 # config.yaml
 geoip:
   provider: dbip-lite        # or maxmind
-  block_countries: [CN, RU]  # blocked on every public route, unless its list replaces this one
+  block_countries: [CN, RU]  # blocked on every public route, except a route with mode: replace
 ```
 
 ```yaml
@@ -28,7 +28,7 @@ geoip: {block_countries: [US]}  # blocked on this route, on top of the global li
 geoip: {mode: replace}  # the global list does not apply: open to every country
 ```
 
-`mode` is `add` (the default) or `replace`. With `replace`, the site list is the only list that blocks countries on that route.
+`mode` is `add` (the default) or `replace`. With `replace`, only the route's own list blocks countries on that route.
 
 Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are ISO 3166 codes, but DB-IP and MaxMind also use `XK` for Kosovo. A lowercase code is saved in capitals. A save refuses a code that the data does not have, and refuses any new code before the first download, with the error of the last download when it failed. Codes already in a list never block a save, so a list can always shrink. Block lists change HAProxy only through an apply, which reloads it with the ranges of the countries now blocked. An apply does not fail over a code the data does not have, or over a block list with no data, such as one written by hand in `config.yaml`. It warns that those countries are not blocked.
 
