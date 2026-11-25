@@ -74,6 +74,7 @@ def test_the_endpoints_are_in_openapi() -> None:
         ("/api/v1/cloudflare/reconcile", "post"),
         ("/api/v1/cloudflare/purge", "post"),
         ("/api/v1/cloudflare/ddns/{zone}/adopt", "post"),
+        ("/api/v1/cloudflare/records/{host}/adopt", "post"),
         ("/api/v1/security/decisions", "get"),
         ("/api/v1/security/decisions/counts", "get"),
         ("/api/v1/security/allowlist", "get"),

@@ -25,6 +25,7 @@ const WORDS: Record<string, (details: Details) => string> = {
   "security.allowlist.remove": (d) => `${text(d.entry)} no longer always allowed`,
   "cloudflare.purge": (d) => `Cloudflare site records removed: ${list(d.deleted).length}`,
   "cloudflare.adopt": (d) => `DDNS record ${text(d.record)} adopted`,
+  "cloudflare.adopt_route": (d) => `Cloudflare record ${text(d.host)} adopted for ${text(d.route)}`,
 };
 
 /** The audit entries that are not applies, as plain words; an unknown action shows its name. */

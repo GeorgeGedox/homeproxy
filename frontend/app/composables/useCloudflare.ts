@@ -73,6 +73,14 @@ export function useCloudflare() {
     if (job?.state === "failed") adoptErrors.value = { ...adoptErrors.value, [zone]: `Adopted, but the DDNS update failed: ${job.error ?? "unknown error"}` };
   }
 
+  /** Take over the hand-made record on a site's host, then sync so it follows the site at once. */
+  async function adoptHost(host: string): Promise<void> {
+    adoptErrors.value = { ...adoptErrors.value, [host]: "" };
+    const { response, error: failure } = await api.POST("/api/v1/cloudflare/records/{host}/adopt", { params: { path: { host } } });
+    if (response.ok) return sync();
+    adoptErrors.value = { ...adoptErrors.value, [host]: apiErrorMessage(failure, "The record was not adopted.") };
+  }
+
   /** Delete every site record HomeProxy made, and say how many went. */
   async function removeSiteRecords(): Promise<void> {
     busy.value = true;
@@ -99,5 +107,5 @@ export function useCloudflare() {
     await refresh();
   });
 
-  return { state, status, zones, notOnCloudflare, hasCloudflareDomain, interval: computed(() => data.value?.interval ?? ""), siteOf, error: computed(() => loadError.value || error.value), adoptErrors, busy, loaded: computed(() => Boolean(data.value)), sync, adopt, removeSiteRecords };
+  return { state, status, zones, notOnCloudflare, hasCloudflareDomain, interval: computed(() => data.value?.interval ?? ""), siteOf, error: computed(() => loadError.value || error.value), adoptErrors, busy, loaded: computed(() => Boolean(data.value)), sync, adopt, adoptHost, removeSiteRecords };
 }

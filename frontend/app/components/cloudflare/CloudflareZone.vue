@@ -7,13 +7,14 @@ const props = defineProps<{
   rows: CloudflareRow[];
   errors: string[];
   ddns?: components["schemas"]["DdnsResult"];
-  adoptError?: string;
+  /** Adopt failures by zone (the DDNS record) and by host (a site record). */
+  adoptErrors: Record<string, string>;
   busy: boolean;
   /** Whether edits are staged: waiting changes then go out at the next apply. */
   staged: boolean;
   siteOf: (host: string) => string | undefined;
 }>();
-defineEmits<{ adopt: [] }>();
+defineEmits<{ adopt: []; adoptHost: [string] }>();
 
 const when = computed(() => (props.staged ? "at the next apply" : "at the next sync"));
 const words = computed(() => ({ live: "", adding: `added ${when.value}`, removing: `removed ${when.value}`, changing: `changed ${when.value}`, "hand-made": "" }));
@@ -50,7 +51,7 @@ const ddnsState = computed((): { tone: LedTone; text: string } | undefined => {
         <span class="flex-1" />
         <UButton v-if="ddns.action === 'hand-made'" label="Adopt" color="neutral" variant="outline" size="xs" :loading="busy" @click="$emit('adopt')" />
         <p class="basis-full pl-5 text-xs" :class="ddnsState.tone === 'down' ? 'text-error' : 'text-muted'">DDNS · {{ ddnsState.text }}</p>
-        <p v-if="adoptError" class="basis-full pl-5 text-xs text-error">{{ adoptError }}</p>
+        <p v-if="adoptErrors[zone]" class="basis-full pl-5 text-xs text-error">{{ adoptErrors[zone] }}</p>
       </li>
       <li v-for="row in rows" :key="row.name" :class="row.state === 'removing' && 'opacity-60'">
         <!-- A record of a site opens the site's editor; the whole row is the link. -->
@@ -67,11 +68,16 @@ const ddnsState = computed((): { tone: LedTone; text: string } | undefined => {
             <span class="flex-1" />
             <span class="text-xs text-muted">{{ row.proxied ? "Proxied" : "DNS only" }}</span>
           </template>
-          <span v-else class="flex-1" />
+          <template v-else>
+            <span class="flex-1" />
+            <!-- The row is a link to the site's editor; the button must not follow it. -->
+            <UButton label="Adopt" color="neutral" variant="outline" size="xs" :loading="busy" @click.stop.prevent="$emit('adoptHost', row.name)" />
+          </template>
           <UIcon v-if="siteOf(row.name)" name="lucide:chevron-right" class="size-4 shrink-0 text-dimmed group-hover:text-highlighted" />
           <p v-if="row.state === 'hand-made'" class="basis-full pl-5 text-xs text-muted">
-            Made by hand in Cloudflare, so HomeProxy leaves it. Delete it in Cloudflare to hand it to its site.
+            Made by hand in Cloudflare, so HomeProxy leaves it. Adopt it to hand it to its site.
           </p>
+          <p v-if="adoptErrors[row.name]" class="basis-full pl-5 text-xs text-error">{{ adoptErrors[row.name] }}</p>
         </ULink>
       </li>
       <li v-if="!rows.length" class="px-4 py-2 text-sm text-muted">

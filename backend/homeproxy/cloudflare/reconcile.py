@@ -30,7 +30,7 @@ from homeproxy.models import (
     Route,
     Secrets,
 )
-from homeproxy.models.domain import domain_of
+from homeproxy.models.domain import cloudflare_off_reason, domain_of
 from homeproxy.store import Store, StoreError
 from homeproxy.store.snapshots import Snapshots
 
@@ -129,6 +129,50 @@ def purge(config: Config, secrets: Secrets) -> list[ZoneResult]:
     return _sync(config, [], secrets, dry_run=False)
 
 
+ADOPTABLE_TYPES = ("A", "AAAA", "CNAME")
+"""Record types that a route record can take over. The next reconcile replaces an A or AAAA."""
+
+
+def adopt_host(config: Config, routes: Sequence[Route], secrets: Secrets, host: str) -> str:
+    """Mark the one hand-made record on a route's host as owned and return the route's name.
+
+    Only the comment changes. The next reconcile replaces an A or AAAA record with the route's
+    CNAME and updates a CNAME in place.
+    Raises `ReconcileError` if the integration is off, no applied public route with its switch on
+    uses the host, or the host does not hold exactly one hand-made A, AAAA or CNAME record, and
+    `CloudflareError` if a call fails.
+    """
+    if not config.cloudflare.enabled:
+        raise ReconcileError("the Cloudflare integration is off")
+    domain = domain_of(host, config.domains)
+    reason = domain and cloudflare_off_reason(domain)
+    want = (
+        next((w for w in _desired(config, routes).get(domain.zone, []) if w.name == host), None)
+        if domain
+        else None
+    )
+    if domain is None or want is None:
+        raise ReconcileError(f"no applied public route with a Cloudflare record uses {host}")
+    if reason:
+        raise ReconcileError(reason)
+    client = CloudflareClient.for_domain(domain, secrets)
+    zone_id = client.zone_id(domain.zone)
+    records = [r for r in client.list_records(zone_id) if r.name == host]
+    if len(records) != 1:
+        raise ReconcileError(
+            f"{host} has {len(records) or 'no'} records, so there is no one to adopt"
+        )
+    record = records[0]
+    if record.comment.startswith(MARKER):
+        raise ReconcileError(f"{host} is already managed by HomeProxy")
+    if record.type not in ADOPTABLE_TYPES:
+        raise ReconcileError(f"{host} holds a {record.type} record, which a route cannot take over")
+    data = RecordData(record.type, host, record.content, record.proxied, _tag(want), record.ttl)
+    client.update_record(zone_id, record.id, data)
+    log.info("cloudflare reconcile %s: adopted %s", domain.zone, host)
+    return want.route
+
+
 def _sync(
     config: Config, routes: Sequence[Route], secrets: Secrets, dry_run: bool
 ) -> list[ZoneResult]:
@@ -206,13 +250,19 @@ def _plan(
     ours = [r for r in records if r.comment.startswith(ROUTE_TAG)]
     hand_made = {r.name for r in records if not r.comment.startswith(ROUTE_TAG)}
     upserts: list[Change] = []
+    replaced: list[Change] = []
     conflicts: list[Conflict] = []
     kept: set[str] = set()
     for want in desired:
         if want.name in hand_made:
             conflicts.append(Conflict(want.name, want.route))
             continue
-        have = next((r for r in ours if r.name == want.name and r.type == "CNAME"), None)
+        have = next((r for r in ours if r.name == want.name), None)
+        if have is not None and have.type != "CNAME":
+            # An adopted A or AAAA is replaced: Cloudflare may not change a type, and an A and a
+            # CNAME cannot share a name, so the delete runs before the create.
+            replaced.append(_delete(have))
+            have = None
         if have is None:
             upserts.append(Change("create", want.name, want.content, want.proxied, want.route))
             continue
@@ -224,12 +274,13 @@ def _plan(
                     have.content, have.proxied,
                 )
             )  # fmt: skip
-    deletes = [
-        Change("delete", r.name, r.content, r.proxied, r.comment.removeprefix(ROUTE_TAG), r.id)
-        for r in ours
-        if r.id not in kept and r.name not in hosts
-    ]
-    return deletes + upserts, conflicts
+    deletes = [_delete(r) for r in ours if r.id not in kept and r.name not in hosts]
+    return deletes + replaced + upserts, conflicts
+
+
+def _delete(record: CloudflareRecord) -> Change:
+    comment = record.comment.removeprefix(ROUTE_TAG)
+    return Change("delete", record.name, record.content, record.proxied, comment, record.id)
 
 
 def _tag(want: _Desired | Change) -> str:

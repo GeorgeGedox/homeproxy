@@ -27,8 +27,8 @@ function remove(): void {
         />
         <template v-if="cf.state.value.enabled">
           <CloudflareZone
-            v-for="zone in cf.zones.value" :key="zone.zone" v-bind="zone" :adopt-error="cf.adoptErrors.value[zone.zone]" :busy="cf.busy.value"
-            :staged="pending.staged.value" :site-of="cf.siteOf" @adopt="cf.adopt(zone.zone)"
+            v-for="zone in cf.zones.value" :key="zone.zone" v-bind="zone" :adopt-errors="cf.adoptErrors.value" :busy="cf.busy.value"
+            :staged="pending.staged.value" :site-of="cf.siteOf" @adopt="cf.adopt(zone.zone)" @adopt-host="cf.adoptHost"
           />
           <UEmpty
             v-if="!cf.zones.value.length" icon="lucide:cloud" title="No domain has its DNS on Cloudflare"
