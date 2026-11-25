@@ -146,8 +146,14 @@ def unique(values: list[str]) -> list[str]:
     return values
 
 
-FileVersion = Annotated[Literal[1], BeforeValidator(_exact_int)]
-"""The `version` field of every file. The store migrates older files before validation."""
+ConfigVersion = Annotated[Literal[1], BeforeValidator(_exact_int)]
+"""The `version` field of `config.yaml`. The store migrates older files before validation."""
+
+RouteVersion = Annotated[Literal[1], BeforeValidator(_exact_int)]
+"""The `version` field of a route file."""
+
+SecretsVersion = Annotated[Literal[1], BeforeValidator(_exact_int)]
+"""The `version` field of `secrets.yaml`."""
 
 Name = Annotated[
     str,

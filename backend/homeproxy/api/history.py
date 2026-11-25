@@ -71,7 +71,7 @@ def get_snapshot(snapshot_id: str, runtime: Runtime) -> SnapshotDetail:
     response_model=PendingSummary,
     responses={
         **_NOT_FOUND,
-        409: {"description": "An apply is running; try again"},
+        409: {"description": "An apply is running, or the snapshot is from a newer release"},
         422: {"description": "A domain of the snapshot names credentials that no longer exist"},
     },
 )

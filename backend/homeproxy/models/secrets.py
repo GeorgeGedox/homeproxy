@@ -17,9 +17,9 @@ from homeproxy.models.domain import DnsProvider
 from homeproxy.models.fields import (
     BasicAuthHash,
     BasicAuthUser,
-    FileVersion,
     Name,
     RequiredSecretToken,
+    SecretsVersion,
     SecretToken,
     SessionKey,
     SigningKey,
@@ -190,7 +190,7 @@ BackupTokenTime = Annotated[
 class Secrets(StrictModel):
     """The whole of `secrets.yaml`."""
 
-    version: FileVersion
+    version: SecretsVersion
     session_key: SessionKey
     dns_credentials: dict[Name, DnsCredential] = Field(default_factory=dict)
     basic_auth: dict[Name, dict[BasicAuthUser, BasicAuthHash]] = Field(default_factory=dict)

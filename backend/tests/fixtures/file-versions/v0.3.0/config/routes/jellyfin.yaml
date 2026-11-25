@@ -1,0 +1,21 @@
+# A public http route with a health check, WebSocket, and headers in both directions.
+version: 1
+name: jellyfin
+type: http
+hosts: [jellyfin.example.com]
+exposure: public
+upstreams:
+  - address: 192.168.1.20:8096
+health_check: {path: /health, interval: 10s}
+tls_upstream: {enabled: false, verify: true}
+websocket: true
+auth: {type: none}
+request_headers:
+  X-Forwarded-Prefix: /
+response_headers:
+  X-Frame-Options: SAMEORIGIN
+  Content-Security-Policy: "default-src 'self'"
+cloudflare: {dns: true, proxied: true}
+dns: {target: haproxy}
+geoip: {block_countries: []}
+enabled: true

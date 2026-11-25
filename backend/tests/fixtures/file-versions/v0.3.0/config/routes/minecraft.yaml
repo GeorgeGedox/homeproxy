@@ -1,0 +1,10 @@
+# A public tcp route on its own port.
+version: 1
+name: minecraft
+type: tcp
+listen_port: 25565
+exposure: public
+upstreams:
+  - address: 192.168.1.40:25565
+geoip: {block_countries: []}
+enabled: true

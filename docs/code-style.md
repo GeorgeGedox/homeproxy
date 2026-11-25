@@ -32,6 +32,12 @@ The backend is Python 3.13 in `backend/homeproxy/`, one package for each area (s
 - **Constants.** A URL, port or timeout is a named `UPPER_SNAKE` constant. When a test or the dev stack must change it, add a `*_ENV = "HOMEPROXY_..."` variable next to it. A function that reads the environment takes `environ: Mapping[str, str] = os.environ`, so that a test can give its own.
 - **Imports.** Put imports at the top of the module. Import late only to break an import cycle, and add a comment that tells why.
 - **Docstrings.** Write in the imperative: "Return the pending changes." Tell the errors in a sentence such as "Raises `StoreError` when the file is not valid YAML." Do not use `Args:` or `Returns:` sections. A module constant can have a docstring on the line below it.
+- **Config file versions.** `config.yaml`, the route files and `secrets.yaml` each have their own `version:`. They move forward only (`homeproxy/store/migrate.py`).
+  - Bump the version of a kind when a key is renamed or removed, when a key has a new meaning, or when a value that was valid is not valid now.
+  - To add a step: raise the kind's entry in `CURRENT_VERSIONS` and its version type in `models/fields.py`, add the step under the old version in `MIGRATIONS`, and add the frozen files of the release to `tests/fixtures/file-versions/`. The step edits the tree in place. Never delete a step, because an install can jump several releases.
+  - A new optional key needs no bump. The release notes then say that the release blocks a downgrade.
+  - In 0.x, a bump is allowed in any release. From 1.0, a file only gains keys in 1.x, and a break waits for 2.0 with a step.
+  - Release a format bump as `feat`, or with `!`. Never release it as `fix`, because a `fix` publishes by itself.
 
 ## Frontend
 

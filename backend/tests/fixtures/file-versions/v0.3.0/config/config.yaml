@@ -1,0 +1,50 @@
+# Seeded config for the dev stack and tests. Never use it in production.
+version: 1
+dashboard:
+  listen: 192.168.1.10:8443
+  # Hash of the dev password "homeproxy-dev". A real install has no default password.
+  password_hash: "$argon2id$v=19$m=65536,t=3,p=4$3OHIcU6dgTQF6GzqvkhHTg$yNdFaspQHLWHk27SCvdhq3uHvBNHHx3nDkinsqQc/9Y"
+  session_ttl: 12h
+network:
+  lan_cidrs: [192.168.1.0/24, 10.0.0.0/8]
+  haproxy_lan_ip: 192.168.1.10
+  http_port: 80
+  https_port: 443
+  public_ip: auto
+  ipv6: false
+cloudflare:
+  enabled: true
+domains:
+  - zone: example.com
+    wildcard_cert: true
+    dns_provider: cloudflare
+    credentials: cf-main
+    cloudflare:
+      ddns_record: home.example.com
+      ddns_update: true
+      default_proxied: true
+  - zone: example.net
+    wildcard_cert: true
+    dns_provider: cloudflare
+    credentials: cf-second
+    cloudflare:
+      ddns_record: home.example.net
+      ddns_update: false
+      default_proxied: false
+dns_server:
+  listen: 192.168.1.10:5335
+  forward_unknown_to: [1.1.1.1, 9.9.9.9]
+dns_records:
+  - {name: nas.example.com, target: 192.168.1.30}
+geoip:
+  provider: dbip-lite
+  block_countries: []
+crowdsec:
+  enabled: false
+  lapi_url: http://127.0.0.1:18080
+  syslog: 127.0.0.1:15140
+  captcha_provider: none
+  allowlist: []
+  appsec: false
+haproxy:
+  track_branch: lts

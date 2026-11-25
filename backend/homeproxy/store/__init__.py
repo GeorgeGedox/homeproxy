@@ -21,12 +21,19 @@ from homeproxy.store.errors import (
 )
 from homeproxy.store.files import Store, validate_config, validate_route, validate_secrets
 from homeproxy.store.lock import HeldLock, file_lock
-from homeproxy.store.migrate import CURRENT_VERSION, MIGRATIONS, migrate_files, migrate_tree
+from homeproxy.store.migrate import (
+    CURRENT_VERSIONS,
+    MIGRATIONS,
+    copy_for_upgrade,
+    migrate_files,
+    migrate_tree,
+    prune_backups,
+)
 from homeproxy.store.secrets import register_model_secrets
 from homeproxy.store.tree import dump_tree, load_tree, parse_tree, write_tree
 
 __all__ = [
-    "CURRENT_VERSION",
+    "CURRENT_VERSIONS",
     "MIGRATIONS",
     "AuditEntry",
     "AuditLog",
@@ -39,12 +46,14 @@ __all__ = [
     "Store",
     "StoreError",
     "ValidationFailed",
+    "copy_for_upgrade",
     "dump_tree",
     "file_lock",
     "load_tree",
     "migrate_files",
     "migrate_tree",
     "parse_tree",
+    "prune_backups",
     "register_model_secrets",
     "validate_config",
     "validate_route",

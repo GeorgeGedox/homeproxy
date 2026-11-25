@@ -21,6 +21,7 @@ protocol only after it.
 """
 
 import asyncio
+import importlib.metadata
 import logging
 import os
 import socket
@@ -37,7 +38,7 @@ from homeproxy.auth.setup_token import announce
 from homeproxy.auth.sources import SourcePolicy, private_policy
 from homeproxy.auth.tls import ensure_certificate, fingerprint
 from homeproxy.models.fields import ListenAddress
-from homeproxy.store import StoreError, migrate_files
+from homeproxy.store import StoreError, copy_for_upgrade, migrate_files, prune_backups
 from homeproxy.store.files import Store
 
 logger = logging.getLogger(__name__)
@@ -229,16 +230,22 @@ def build_config(
 
 
 def migrate_config(store: Store) -> None:
-    """Bring the config files up to this release's version, before anything reads them.
+    """Copy the files at a new HomeProxy version, then bring them up to this release's version,
+    before anything reads them.
 
-    A failure is logged and the dashboard still starts, so the admin can see it. A file newer
-    than this release, as after a rollback, is one such failure.
+    A failure is logged and the dashboard still starts, so the admin can see it. A failed copy
+    stops the migration, because a migration without a way back is worse. A file newer than this
+    release is one such failure.
     """
     try:
         with store.lock() as held:
+            copied = copy_for_upgrade(store, held, importlib.metadata.version("homeproxy"))
+            if copied:
+                logger.info("copied the config and secrets to %s", copied)
             migrated = migrate_files(store, held)
+            prune_backups(store)
     except (OSError, StoreError) as error:
-        logger.error("cannot migrate the config files: %s", error)
+        logger.error("cannot copy or migrate the config files: %s", error)
         return
     if migrated:
         logger.info(

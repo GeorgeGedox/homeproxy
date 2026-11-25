@@ -1,0 +1,12 @@
+# A public http route to the dev stack's test backends. With proxied unset, Cloudflare proxying
+# follows the zone's default_proxied.
+version: 1
+name: whoami
+type: http
+hosts: [whoami.example.com, whoami.example.net]
+exposure: public
+upstreams:
+  - address: whoami-a:80
+  - address: whoami-b:80
+cloudflare: {dns: true}
+geoip: {mode: replace, block_countries: [RU]}

@@ -1,0 +1,12 @@
+# A LAN-only passthrough route: the backend keeps its own certificate.
+version: 1
+name: pve
+type: passthrough
+hosts: [pve.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.31:8006
+cloudflare: {dns: false, proxied: false}
+dns: {target: haproxy}
+geoip: {block_countries: []}
+enabled: true
