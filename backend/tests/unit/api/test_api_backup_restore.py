@@ -117,6 +117,26 @@ def test_a_backup_restores_with_its_routes_password_and_certificate(
     assert server.should_exit is True, "the dashboard restarts to load the certificate"
 
 
+def test_an_archive_from_the_install_docs_tar_command_restores_without_its_left_out_entries(
+    fresh: tuple[TestClient, str, Path], source: dict[str, str]
+) -> None:
+    test, token, root = fresh
+    members = [(info.replace(name=f"./{info.name}"), data) for info, data in base(source)]
+    members += [
+        file_member("./pending/config.yaml", "staged: edit"),
+        file_member("./migration-backups/20261101T000000Z/secrets/secrets.yaml", "old"),
+        file_member("./store.lock", ""),
+        special("./generated.prev", tarfile.SYMTYPE, "releases/old"),
+    ]
+
+    assert restore(test, token, archive(members)) == 204
+
+    assert (root / "config" / "routes" / "app.yaml").read_text() == source["route"]
+    # The fresh install has its own store.lock, so the archive's is only shown to be harmless.
+    for left_out in ("pending", "migration-backups", "generated.prev"):
+        assert not (root / left_out).exists(), left_out
+
+
 def test_a_second_restore_after_setup_is_a_conflict(
     fresh: tuple[TestClient, str, Path], source: dict[str, str]
 ) -> None:
@@ -173,7 +193,7 @@ def refusals(source: dict[str, str]) -> dict[str, tuple[Members, str]]:
         "a-device": ([*good, special("config/dev", tarfile.CHRTYPE)], refused),
         "an-absolute-path": ([*good, file_member(ESCAPE, "x")], refused),
         "a-dotdot-path": ([*good, file_member("config/../../escape", "x")], refused),
-        "an-entry-outside-the-allowlist": ([*good, file_member("pending/x", "x")], refused),
+        "an-unknown-entry": ([*good, file_member("hooks/x", "x")], refused),
         "a-path-used-twice": ([*good, file_member("config/config.yaml", "x")], refused),
         "a-file-under-a-file": ([*good, file_member("config/config.yaml/x", "x")], refused),
         "no-config": ([file_member("secrets/secrets.yaml", source["secrets"])], "not_a_backup"),

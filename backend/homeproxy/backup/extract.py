@@ -1,6 +1,7 @@
 """Read an uploaded archive into a staging directory. The archive is hostile input.
 
-Only regular files and directories under a name of `INCLUDED` are taken. The code makes every
+Only regular files and directories under a name of `INCLUDED` are taken. Entries under a name of
+`EXCLUDED` are skipped, and any other name is refused. The code makes every
 directory 0700 and every file 0600, whatever the archive says, and never overwrites a file. The
 stdlib `data` filter runs on each member as a second check. The caps in `layout` stop an archive
 that is large, or that has many members, before it fills the disk.
@@ -14,7 +15,7 @@ import zlib
 from pathlib import Path
 
 from homeproxy.backup.errors import RestoreRefused
-from homeproxy.backup.layout import INCLUDED, MAX_EXTRACTED_BYTES, MAX_MEMBERS
+from homeproxy.backup.layout import EXCLUDED, INCLUDED, MAX_EXTRACTED_BYTES, MAX_MEMBERS
 from homeproxy.util.atomic import ensure_dir
 
 
@@ -28,15 +29,21 @@ def _refused(name: str, why: str) -> RestoreRefused:
     return RestoreRefused(422, "backup_member_refused", f"{shown}: {why}")
 
 
-def _parts(member: tarfile.TarInfo) -> list[str]:
-    """Return the path parts of a member's name. Raises `RestoreRefused` unless the name is a
-    relative path inside the archive with an allowed top-level entry. The root `./` gives `[]`."""
+def _parts(member: tarfile.TarInfo) -> list[str] | None:
+    """Return the path parts of a member's name, or None for an entry a backup leaves out.
+
+    Raises `RestoreRefused` unless the name is a relative path inside the archive with a known
+    top-level entry. The root `./` gives `[]`. Left-out entries are skipped, so an archive made
+    with the `tar` command in the install docs restores too.
+    """
     name = member.name.removeprefix("./")
     if name in ("", "."):
         return []
     parts = name.split("/")
     if name.startswith("/") or any(part in ("", ".", "..") for part in parts) or "\0" in name:
         raise _refused(name, "the path is not allowed")
+    if parts[0] in EXCLUDED:
+        return None
     if parts[0] not in INCLUDED:
         raise _refused(name, "this entry is not part of a backup")
     return parts
@@ -56,13 +63,14 @@ def _extract_member(
 ) -> int:
     """Write one member. Return `total` plus its size."""
     parts = _parts(member)
-    if not parts and member.isdir():
-        return total
-    if not (member.isreg() or member.isdir()) or member.type == tarfile.GNUTYPE_SPARSE:
-        raise _refused(member.name, "only files and directories are allowed")
+    # A skipped member is still read through, so it counts toward the cap.
     total += member.size
     if total > MAX_EXTRACTED_BYTES:
         raise RestoreRefused(413, "backup_too_large", "The backup holds too much data.")
+    if parts is None or (not parts and member.isdir()):
+        return total
+    if not (member.isreg() or member.isdir()) or member.type == tarfile.GNUTYPE_SPARSE:
+        raise _refused(member.name, "only files and directories are allowed")
     target = staging.joinpath(*parts)
     try:
         tarfile.data_filter(member, str(staging))
