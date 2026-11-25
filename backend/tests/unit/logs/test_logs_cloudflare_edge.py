@@ -98,9 +98,14 @@ def test_a_changed_range_list_is_read_again_after_the_check_interval(
     assert edge.unmarked(release, LIVE) == ["app"]
 
 
-def test_a_missing_range_list_warns_about_nothing(release: Path, clock: Clock) -> None:
+def test_a_missing_range_list_warns_about_nothing_and_is_logged_once(
+    release: Path, clock: Clock, caplog: pytest.LogCaptureFixture
+) -> None:
     edge = CloudflareEdge(release / "missing.lst", clock)
 
     edge(line(EDGE))
+    clock.now += RELOAD_SECONDS
+    edge(line(EDGE))
 
     assert edge.unmarked(release, LIVE) == []
+    assert len(caplog.records) == 1

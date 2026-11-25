@@ -51,6 +51,7 @@ class CloudflareEdge:
         self._networks: list[_Network] = []
         self._version: tuple[int, int] | None = None
         self._checked: float | None = None
+        self._missing = False
         self._seen: dict[str, float] = {}
 
     def __call__(self, line: AccessLog) -> None:
@@ -77,9 +78,12 @@ class CloudflareEdge:
             if version != self._version:
                 self._networks = _parse_ranges(self._file.read_text())
                 self._version = version
+            self._missing = False
         except OSError as error:
-            logger.warning("cannot read the cloudflare range list: %s", type(error).__name__)
-            self._networks, self._version = [], None
+            # A release from before the first range refresh has no list. Say so once, not per check.
+            if not self._missing:
+                logger.warning("cannot read the cloudflare range list: %s", type(error).__name__)
+            self._networks, self._version, self._missing = [], None, True
 
     def unmarked(self, release: Path, live: Iterable[str]) -> list[str]:
         """Return the sorted `live` routes that got a request from a Cloudflare edge address in the
