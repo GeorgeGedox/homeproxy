@@ -54,6 +54,7 @@ export interface RouteDraft {
   listen_port: number | undefined;
   exposure: "lan" | "public";
   upstreams: string[];
+  sticky: boolean;
   health_path: string;
   tls_enabled: boolean;
   tls_verify: boolean;
@@ -82,7 +83,7 @@ export interface RouteDraft {
 /** A new HTTP route with the defaults the form starts from. */
 export function blankDraft(): RouteDraft {
   return {
-    type: "http", hosts: [], listen_port: undefined, exposure: "lan", upstreams: [],
+    type: "http", hosts: [], listen_port: undefined, exposure: "lan", upstreams: [], sticky: false,
     health_path: "", tls_enabled: false, tls_verify: true, websocket: false, auth: "none", request_headers: [], response_headers: [], enabled: true,
     path_prefix: "/", strip_prefix: false, redirect_to: "", redirect_code: 301, keep_path: false,
     dns_target: "haproxy", cloudflare_dns: false, cloudflare_proxied: null, block_countries: [], geoip_enabled: false, geoip_mode: "add",
@@ -134,6 +135,7 @@ export function routeToDraft(route: Route): RouteDraft {
     type: route.type, exposure: route.exposure, enabled: route.enabled,
     ...geoipToDraft(route),
     upstreams: route.type === "redirect" ? [] : route.upstreams.map((upstream) => upstream.address),
+    sticky: route.type === "redirect" ? false : route.sticky,
     ...(route.type === "tcp" ? { listen_port: route.listen_port } : hostsToDraft(route)),
     ...(route.type === "http" ? httpToDraft(route) : {}),
     ...(route.type === "redirect"
@@ -141,6 +143,9 @@ export function routeToDraft(route: Route): RouteDraft {
       : {}),
   };
 }
+
+/** Sticky saves as on only with more than one upstream: with one there is nothing to choose between. */
+const sticky = (draft: RouteDraft) => draft.sticky && draft.upstreams.length > 1;
 
 /** The fields every route type shares, and the name of the route being edited (a new route gets one from the server). */
 function common(draft: RouteDraft, original?: Route) {
@@ -167,6 +172,7 @@ function httpRoute(draft: RouteDraft, original?: Route): Route {
   return {
     ...common(draft, original), ...hostSettings(draft), type: "http",
     upstreams: draft.upstreams.map((address) => ({ address })),
+    sticky: sticky(draft),
     health_check: draft.health_path
       ? { path: draft.health_path, interval: kept?.health_check?.interval ?? "10s" }
       : null,
@@ -193,8 +199,8 @@ export function draftToRoute(draft: RouteDraft, original?: Route): Route {
     } as Route;
   }
   const upstreams = draft.upstreams.map((address) => ({ address }));
-  if (draft.type === "tcp") return { ...common(draft, original), type: "tcp", listen_port: draft.listen_port ?? 0, upstreams } as Route;
-  return { ...common(draft, original), ...hostSettings(draft), type: "passthrough", upstreams } as Route;
+  if (draft.type === "tcp") return { ...common(draft, original), type: "tcp", listen_port: draft.listen_port ?? 0, upstreams, sticky: sticky(draft) } as Route;
+  return { ...common(draft, original), ...hostSettings(draft), type: "passthrough", upstreams, sticky: sticky(draft) } as Route;
 }
 
 /**

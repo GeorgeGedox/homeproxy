@@ -116,6 +116,7 @@ class HttpRoute(StrictModel):
     hosts: RouteHosts
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     health_check: HealthCheck | None = None
     tls_upstream: TlsUpstream = Field(default_factory=TlsUpstream)
     websocket: bool = False
@@ -139,6 +140,7 @@ class PassthroughRoute(StrictModel):
     hosts: RouteHosts
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     cloudflare: PassthroughRouteCloudflare = Field(default_factory=PassthroughRouteCloudflare)
     dns: RouteDns = Field(default_factory=RouteDns)
     geoip: RouteGeoip = Field(default_factory=RouteGeoip)
@@ -154,6 +156,7 @@ class TcpRoute(StrictModel):
     listen_port: Port
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     geoip: RouteGeoip = Field(default_factory=RouteGeoip)
     enabled: bool = True
 

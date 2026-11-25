@@ -46,6 +46,7 @@ BLOCKED = "127.0.0.8"
 VISITOR = "198.51.100.7"
 GAME_PORT = 9100
 SHELL_PORT = 9101
+PAIR_PORT = 9102
 SOURCES = (CLOUDFLARE, LAN, OTHER, BLOCKED)
 TARGETS = (HTTPS_PORT, GAME_PORT, SHELL_PORT, HTTP_PORT)
 UPSTREAM_CERTIFICATE = "upstream.pem"
@@ -63,6 +64,14 @@ INCLUDE = f"""\
 listen test_upstream
     bind 127.0.0.1:9000
     http-request return status 200 content-type text/plain lf-string "%[req.fhdr(x-forwarded-for)]"
+
+listen test_node_a
+    bind 127.0.0.1:9001
+    http-request return status 200 content-type text/plain string "node a"
+
+listen test_node_b
+    bind 127.0.0.1:9002
+    http-request return status 200 content-type text/plain string "node b"
 
 listen test_tls_upstream
     bind 127.0.0.1:9444 ssl crt /data/{UPSTREAM_CERTIFICATE}
@@ -138,6 +147,8 @@ ROUTES = {
     + "cloudflare: {dns: true, proxied: true}\n",
     "game": route("game", "tcp", "public", f"listen_port: {GAME_PORT}", "127.0.0.1:9000"),
     "shell": route("shell", "tcp", "lan", f"listen_port: {SHELL_PORT}", "127.0.0.1:9000"),
+    "pair": route("pair", "tcp", "public", f"listen_port: {PAIR_PORT}", "127.0.0.1:9001")
+    + "  - address: 127.0.0.1:9002\nsticky: true\n",
 }
 
 
@@ -381,6 +392,19 @@ def test_access_rules_apply_to_the_real_client(
     reply = live.tcp_reply(source, port, REQUEST if served else b"")
     assert reply.startswith(b"HTTP/1.1 200 ") is served
     assert live.next_log_entry("fe_tcp", source, before).route == route
+
+
+def test_sticky_route_keeps_a_client_on_one_upstream(live: Live) -> None:
+    nodes = set()
+    for _ in range(6):
+        with socket.create_connection((live.address, PAIR_PORT), 5) as client:
+            client.sendall(REQUEST)
+            reply = b""
+            while chunk := client.recv(4096):
+                reply += chunk
+        nodes.add(reply.rsplit(b"\r\n\r\n", 1)[-1])
+    assert len(nodes) == 1
+    assert nodes <= {b"node a", b"node b"}
 
 
 def test_logs_name_the_real_client_behind_the_sni_layer(live: Live) -> None:
