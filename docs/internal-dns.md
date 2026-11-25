@@ -1,20 +1,24 @@
 # Internal DNS server
 
-HomeProxy runs a small DNS server for the zones in your domains. It gives LAN clients the proxy's LAN address for each site. Thus LAN clients do not go out through the WAN address and back in. Send only your zones to it from AdGuard Home, or from another LAN resolver.
+HomeProxy runs a small DNS server for the zones in your domains. It gives LAN clients the proxy's LAN address for each site. Thus LAN clients do not go out through the WAN address and back in. Your LAN resolver, for example AdGuard Home or Pi-hole, sends only your zones to it.
 
-## Connect AdGuard Home
+## Connect your LAN resolver
 
-1. Open **DNS**. The page shows the upstream lines for all your zones.
-2. Click **Copy**.
-3. In AdGuard Home, paste the lines into the upstream DNS servers. Keep your other upstreams.
+Set your LAN resolver to send each of your zones to the address in **DNS server address**. Keep its other upstreams.
 
-There is one line for each zone, for example:
+The **DNS** page shows one line for each zone in the AdGuard Home format. Click **Copy** and paste the lines into the upstream DNS servers of AdGuard Home:
 
 ```text
 [/example.com/]192.168.1.10:5335
 ```
 
-Do not put AdGuard Home in **DNS upstreams**. AdGuard sends the zone to HomeProxy, and HomeProxy then sends the name back to AdGuard, so the query loops. When a query comes from an address that is also in **DNS upstreams**, HomeProxy does not forward it. It answers SERVFAIL and logs a warning that names the address.
+Pi-hole and other resolvers that use dnsmasq use this format:
+
+```text
+server=/example.com/192.168.1.10#5335
+```
+
+Do not put your LAN resolver in **DNS upstreams**. The resolver sends the zone to HomeProxy, and HomeProxy then sends the name back to the resolver, so the query loops. When a query comes from an address that is also in **DNS upstreams**, HomeProxy does not forward it. It answers SERVFAIL and logs a warning that names the address.
 
 ## The DNS page
 
@@ -58,7 +62,7 @@ A change that affects only DNS answers does not reload HAProxy.
 
 Open **Settings** and go to **DNS server**:
 
-- **DNS server address**: the address and port where the server listens, for example `192.168.1.10:5335`. The default port is 5335, because mDNS uses 5353 and AdGuard usually uses 53. The server listens on UDP and TCP.
+- **DNS server address**: the address and port where the server listens, for example `192.168.1.10:5335`. The default port is 5335, because mDNS uses 5353 and the LAN resolver usually uses 53. The server listens on UDP and TCP.
 - **DNS upstreams**: the resolvers for the names in your zones that HomeProxy does not answer. Type an address and press Enter. Setup sets `1.1.1.1`, the public resolver that HomeProxy also uses to check certificate records. Thus the public records of your zones, for example `www` or the zone itself, resolve on the LAN.
 
 Click **Stage changes**, then **Apply** in the bar at the bottom. In `config.yaml`, the settings are:
@@ -75,7 +79,7 @@ If the host does not have the address in **DNS server address**, the server logs
 
 ## Another DNS server in the same zone
 
-Another DNS server on the LAN can answer other names in one of your zones. An example is k8s_gateway for a Kubernetes cluster. Do not give AdGuard two upstream lines for that zone. AdGuard uses the first answer that it gets, and an NXDOMAIN is an answer. Thus one server can hide the names of the other server.
+Another DNS server on the LAN can answer other names in one of your zones. An example is k8s_gateway for a Kubernetes cluster. Do not give your LAN resolver two upstreams for that zone. The resolver uses one answer, and an NXDOMAIN is an answer. Thus one server can hide the names of the other server.
 
 Send the zone to HomeProxy only. Then do these steps in the dashboard:
 
@@ -88,7 +92,7 @@ HomeProxy answers for its sites and its extra records. It sends all other names 
 
 An NXDOMAIN is an answer, so HomeProxy does not ask the next upstream after it. Thus `1.1.1.1` answers only when the other server is down. HomeProxy sends queries to port 53 only.
 
-A different LAN domain does not need HomeProxy. Give that domain its own upstream line in AdGuard.
+A different LAN domain does not need HomeProxy. Send that domain from your LAN resolver straight to its own DNS server.
 
 ## Answers
 
@@ -108,7 +112,7 @@ The server answers only what the last successful apply wrote. A pending change h
 
 ## Limits
 
-- Only private client addresses get an answer: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback, link-local and other ranges that the internet does not route. All other clients get no answer, also when **DNS server address** is `0.0.0.0` or a public address. Thus the internet cannot learn your LAN addresses. Tailscale and other `100.64.0.0/10` clients get no answer either: point them at AdGuard on the LAN.
-- Each client address can send 200 queries per second. Queries above the limit get no answer. AdGuard counts as one client for all the LAN clients behind it, and its cache keeps it well below the limit.
+- Only private client addresses get an answer: `10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`, loopback, link-local and other ranges that the internet does not route. All other clients get no answer, also when **DNS server address** is `0.0.0.0` or a public address. Thus the internet cannot learn your LAN addresses. Tailscale and other `100.64.0.0/10` clients get no answer either: point them at your LAN resolver.
+- Each client address can send 200 queries per second. Queries above the limit get no answer. Your LAN resolver counts as one client for all the LAN clients behind it, and its cache keeps it well below the limit.
 - IPv4 only: there are no `AAAA` answers in this version.
 - The DNS server is its own process. It continues to answer when the dashboard stops.

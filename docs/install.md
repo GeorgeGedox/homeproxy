@@ -89,7 +89,7 @@ If that first apply fails, setup still finishes. Overview shows the failed apply
 Open Settings (menu on the left). Change what does not fit your machine, then press Save settings. It shows "Saved as a pending change", and the bar at the top counts it.
 
 - **HTTP port and HTTPS port**, if ports 80 and 443 are not free. See [Migrating](migrating.md).
-- **DNS upstreams**: the resolvers the internal DNS server asks for names in your zones that it does not answer itself. Setup sets `1.1.1.1`. To use others, type an address and press Enter. Never add AdGuard Home here. See [Internal DNS server](internal-dns.md).
+- **DNS upstreams**: the resolvers the internal DNS server asks for names in your zones that it does not answer itself. Setup sets `1.1.1.1`. To use others, type an address and press Enter. Never add your LAN resolver here. See [Internal DNS server](internal-dns.md).
 
 The change takes effect at the next apply (step 8). A port that clashes with the dashboard, DNS or Prometheus port, or with a `tcp` route, is refused when you save, with a message such as `dns_server.listen port is already used by https_port`. The apply checks it again, for example after a hand edit.
 
@@ -123,7 +123,7 @@ curl -k --resolve app.example.com:443:192.168.1.10 https://app.example.com/
 
 ## 9. Point your network at it
 
-- **Internal DNS.** In AdGuard Home or your router, send queries for your zone to the HomeProxy DNS server, `192.168.1.10:5335`. It forwards the other names in the zone to the DNS upstreams on the Settings page. See [Internal DNS server](internal-dns.md).
+- **Internal DNS.** In your LAN resolver, for example AdGuard Home or Pi-hole, send queries for your zone to the HomeProxy DNS server, `192.168.1.10:5335`. It forwards the other names in the zone to the DNS upstreams on the Settings page. See [Internal DNS server](internal-dns.md).
 - **Router.** For routes with exposure `public`, forward ports 80 and 443 from the router to `192.168.1.10`. A LAN-only route needs no forward. How HomeProxy finds the real client address of a request that came through Cloudflare is in [Real client IP](real-client-ip.md).
 
 ## 10. Add CrowdSec (optional)
