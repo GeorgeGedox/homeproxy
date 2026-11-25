@@ -132,14 +132,74 @@ CrowdSec bans clients that attack your public routes. The bouncer is in the imag
 
 ## Back up
 
-Copy `/data` to another machine, leaving out `generated`, `releases` and `state`. The next apply rebuilds them. Run this in the directory of `compose.yaml`:
+A backup holds `config/`, `secrets/`, `certs/`, `acme/`, `tls/`, `history/` and `audit/`. It leaves out `generated`, `releases`, `state/`, `pending/` and `migration-backups/`. The next apply rebuilds the first two, and the others are not needed on a new machine.
+
+The archive holds `secrets/secrets.yaml` and the certificate keys. It is not encrypted. Keep it private.
+
+### Download a backup
+
+1. Open **Settings**, then **Backup**.
+2. Choose **Download backup**.
+
+The browser saves `homeproxy-backup-<version>-<time>.tar.gz`.
+
+### Back up every night
+
+A script can download the backup with a backup token. The token works for the backup download only.
+
+1. Open **Settings**, then **Backup**.
+2. Choose **Create token**.
+3. Copy the token. The dashboard shows it once.
+4. Put the token in the variable `HOMEPROXY_BACKUP_TOKEN` of your script.
+
+To make a new token, choose **Replace token**. The old token stops working at once. To stop all scripts, choose **Remove token**.
+
+The dashboard certificate is self-signed. Save it once, and compare its fingerprint with the one in the container log:
+
+```sh
+openssl s_client -connect 192.168.1.10:8443 </dev/null 2>/dev/null | openssl x509 > homeproxy.pem
+openssl x509 -in homeproxy.pem -noout -fingerprint -sha256
+```
+
+The script then checks every download against the saved certificate. The certificate names `homeproxy`, not the IP address, so `--resolve` points that name to the address of the dashboard:
+
+```sh
+curl --fail --cacert homeproxy.pem --resolve homeproxy:8443:192.168.1.10 \
+  -H "Authorization: Bearer $HOMEPROXY_BACKUP_TOKEN" -OJ https://homeproxy:8443/api/v1/backup
+```
+
+Do not use `--insecure`. Without the certificate check, anyone on your LAN can read the token.
+
+To encrypt the archive on the machine that stores it, use `age` or `gpg`. Each command asks for a passphrase:
+
+```sh
+age -p -o homeproxy-backup.tar.gz.age homeproxy-backup-*.tar.gz
+gpg -c homeproxy-backup-*.tar.gz
+```
+
+A script cannot answer a passphrase prompt. In a script, use `age -r <public key>` or `gpg -e -r <key id>`. Then the machine that stores the backups holds no key that opens them. Delete the plain archive after you encrypt it.
+
+### Restore on a new machine
+
+1. Do steps 1 to 4 of this page, and open the setup page.
+2. Enter the setup token from the container log.
+3. Under **Restore from backup**, choose the `.tar.gz` file and choose **Restore backup**.
+4. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+5. Reload the page and accept the certificate warning again.
+6. Log in with the password from the backup.
+
+The restore replaces setup. It works only on an install that is not set up. The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
+
+The first apply runs after the restore. On a new machine, a value of the old machine can make it fail, for example `network.haproxy_lan_ip`. The failure shows on Overview. Fix the value on the Settings page.
+
+### Back up by hand
+
+Copy `/data` to another machine, leaving out `generated`, `releases` and `state`. Run this in the directory of `compose.yaml`:
 
 ```sh
 docker compose exec -T homeproxy tar -C /data --exclude=./generated --exclude=./releases \
   --exclude=./state -czf - . > homeproxy-data.tar.gz
 ```
-
-The archive holds `secrets/secrets.yaml` and the certificate keys. Keep it private.
 
 To restore on a new machine, do steps 1 to 3, fill the empty data directory before the first start, then start:
 
