@@ -74,6 +74,8 @@ export interface RouteDraft {
   block_countries: string[];
   /** Whether the route's own country list is applied. Off keeps the list for later. */
   geoip_enabled: boolean;
+  /** Whether the route's list adds to the global list or replaces it. */
+  geoip_mode: "add" | "replace";
   enabled: boolean;
 }
 
@@ -83,7 +85,7 @@ export function blankDraft(): RouteDraft {
     type: "http", hosts: [], listen_port: undefined, exposure: "lan", upstreams: [],
     health_path: "", tls_enabled: false, tls_verify: true, websocket: false, auth: "none", request_headers: [], response_headers: [], enabled: true,
     path_prefix: "/", strip_prefix: false, redirect_to: "", redirect_code: 301, keep_path: false,
-    dns_target: "haproxy", cloudflare_dns: false, cloudflare_proxied: null, block_countries: [], geoip_enabled: false,
+    dns_target: "haproxy", cloudflare_dns: false, cloudflare_proxied: null, block_countries: [], geoip_enabled: false, geoip_mode: "add",
   };
 }
 
@@ -120,8 +122,9 @@ function hostsToDraft(route: Exclude<Route, { type: "tcp" }>): Partial<RouteDraf
 
 function geoipToDraft(route: Route): Partial<RouteDraft> {
   const countries = route.geoip?.block_countries ?? [];
-  // An empty list blocks nothing, so the switch shows off for it whatever the file says.
-  return { block_countries: [...countries], geoip_enabled: (route.geoip?.enabled ?? true) && countries.length > 0 };
+  const mode = route.geoip?.mode ?? "add";
+  // An empty list that adds blocks nothing, so the switch shows off for it whatever the file says.
+  return { block_countries: [...countries], geoip_mode: mode, geoip_enabled: (route.geoip?.enabled ?? true) && (countries.length > 0 || mode === "replace") };
 }
 
 /** The form state of a saved route. */
@@ -145,8 +148,11 @@ function common(draft: RouteDraft, original?: Route) {
   return {
     ...kept, version: 1 as const, ...(original ? { name: original.name } : {}),
     exposure: draft.exposure, enabled: draft.enabled,
-    // An empty list keeps the file's flag, so editing a route without one adds no `enabled` line.
-    geoip: { ...kept?.geoip, block_countries: draft.block_countries, ...(draft.block_countries.length ? { enabled: draft.geoip_enabled } : {}) },
+    // An empty list that adds keeps the file's flag, so editing a route without one adds no `enabled` line.
+    geoip: {
+      ...kept?.geoip, block_countries: draft.block_countries, mode: draft.geoip_mode === "replace" ? "replace" as const : undefined,
+      ...(draft.block_countries.length || draft.geoip_mode === "replace" ? { enabled: draft.geoip_enabled } : {}),
+    },
   };
 }
 

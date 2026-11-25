@@ -144,3 +144,22 @@ test("block countries by picking them, and switch the blocking off without losin
   await expect(page.getByRole("switch", { name: /Block countries/ })).not.toBeChecked();
   await expect(page.getByText("Off. Kept for later: China, Germany")).toBeVisible();
 });
+
+test("a route's country list says whether it adds to the global list or replaces it, and the choice saves", async ({ page }) => {
+  const state = await mockApi(page);
+  state.routes = [wiki];
+  await page.goto("/routes");
+  await openWiki(page);
+  await page.getByRole("switch", { name: /Block countries/ }).click();
+  await expect(page.getByText("Countries (adds to the global list)")).toBeVisible();
+  await page.getByRole("switch", { name: /Replace the global list/ }).click();
+  await expect(page.getByText("Countries (replaces the global list)")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Block North Korea" })).toBeVisible();
+  await page.getByRole("button", { name: "Stage change" }).click();
+
+  await expect(page).toHaveURL(/\/routes$/);
+  expect(state.put[0]).toMatchObject({ geoip: { enabled: true, block_countries: [], mode: "replace" } });
+  await openWiki(page);
+  await expect(page.getByRole("switch", { name: /Replace the global list/ })).toBeChecked();
+  await expect(page.getByText("Countries (replaces the global list)")).toBeVisible();
+});

@@ -133,6 +133,9 @@ def seed(data: Path) -> None:
     (data / "config" / "routes" / "open.yaml").write_text(route("open", "FR"))
     (data / "config" / "routes" / "plain.yaml").write_text(route("plain", ""))
     (data / "config" / "routes" / "direct.yaml").write_text(route("direct", "", "{}"))
+    (data / "config" / "routes" / "free.yaml").write_text(
+        route("free", "").replace("geoip: {block_countries: []}", "geoip: {mode: replace}")
+    )
     placeholder = data / "releases" / "placeholder" / "conf.d"
     placeholder.mkdir(parents=True)
     (placeholder / "00-placeholder.cfg").write_text(PLACEHOLDER)
@@ -197,6 +200,7 @@ def lab(dbip_url: str) -> Iterator[Lab]:
         pytest.param(CLOUDFLARE, "plain", "203.0.113.7", 200, id="route-list-stays-on-its-route"),
         pytest.param(CLOUDFLARE, "open", "203.0.113.7", 403, id="route-block"),
         pytest.param(CLOUDFLARE, "open", "192.0.2.7", 200, id="country-not-blocked"),
+        pytest.param(CLOUDFLARE, "free", "198.51.100.7", 200, id="empty-replacing-list-is-open"),
         pytest.param(CLOUDFLARE, "open", "100.64.0.7", 200, id="address-without-country"),
         pytest.param(LAN, "plain", None, 200, id="lan-is-never-blocked"),
     ],

@@ -4,8 +4,8 @@ HomeProxy blocks countries in HAProxy, and shows the country of every request in
 
 ## In the dashboard
 
-- **Security, Countries card:** pick the countries blocked on every public site. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
-- **A site's settings, Protection:** **Block countries** adds countries for that site only.
+- **Security, Countries card:** pick the countries blocked on every public site. A site whose own list replaces the global list does not use it. The card shows how much data is loaded, from which provider and how old it is, with the credit its license asks for. **Refresh data** downloads it now and shows the download until it ends, or its error.
+- **A site's settings, Protection:** **Block countries** blocks countries on that site only. By default, the site list adds to the global list, and its label is "Countries (adds to the global list)". To block only the countries of the site list, turn on **Replace the global list**. The label then changes to "Countries (replaces the global list)". In this mode, an empty site list blocks no country on that site.
 
 Each change is staged and takes effect at the next apply.
 
@@ -15,13 +15,20 @@ Each change is staged and takes effect at the next apply.
 # config.yaml
 geoip:
   provider: dbip-lite        # or maxmind
-  block_countries: [CN, RU]  # blocked on every public route
+  block_countries: [CN, RU]  # blocked on every public route, except a route with mode: replace
 ```
 
 ```yaml
 # routes/jellyfin.yaml
 geoip: {block_countries: [US]}  # blocked on this route, on top of the global list
 ```
+
+```yaml
+# routes/public-api.yaml
+geoip: {mode: replace}  # the global list does not apply: open to every country
+```
+
+`mode` is `add` (the default) or `replace`. With `replace`, only the route's own list blocks countries on that route.
 
 Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are ISO 3166 codes, but DB-IP and MaxMind also use `XK` for Kosovo. A lowercase code is saved in capitals. A save refuses a code that the data does not have, and refuses any new code before the first download, with the error of the last download when it failed. Codes already in a list never block a save, so a list can always shrink. Block lists change HAProxy only through an apply, which reloads it with the ranges of the countries now blocked. An apply does not fail over a code the data does not have, or over a block list with no data, such as one written by hand in `config.yaml`. It warns that those countries are not blocked.
 
@@ -30,7 +37,7 @@ Country codes are the two-letter codes of the GeoIP data, such as `DE`. Most are
 - A request from a blocked country gets a plain 403 on a public route.
 - Clients in `network.lan_cidrs` are never blocked.
 - A route with exposure `lan` already refuses every client from outside the LAN, so its own list has no effect.
-- `geoip: {enabled: false, block_countries: [US]}` keeps the route's list but blocks nothing on that route. The global list still applies to it, and its countries are not loaded into HAProxy's map.
+- `geoip: {enabled: false, block_countries: [US]}` keeps the route's list but blocks nothing on that route. The global list still applies to it, even when `mode` is `replace`, and its countries are not loaded into HAProxy's map.
 - On a route Cloudflare proxies, the country is the visitor's, never the one of Cloudflare's edge (see [Real client IP behind Cloudflare](real-client-ip.md)). On any other route, a request through Cloudflare gets the country of Cloudflare's address. Visitors with IPv6 addresses are looked up too.
 - An address with no country, such as a private or reserved range, is never blocked and has an empty country in the logs.
 - Requests from countries you do not block are logged and counted with their country too. A blocked request is logged with the country it was blocked for.
@@ -52,7 +59,7 @@ The data lives in `/data/geoip/`: `country.map`, `country-lookup.bin` for the lo
 
 ## Accuracy and memory
 
-HAProxy keeps its map in memory, about 300 bytes for each entry. It loads only the ranges of the countries blocked globally or on a public route whose list is on. With no country blocked, its map is empty. The full DB-IP data, written as plain address blocks, would need about 1.4 million entries and more than 400 MB. HomeProxy makes the map smaller in two ways:
+HAProxy keeps its map in memory, about 300 bytes for each entry. It loads only the ranges of the countries that a public route blocks. With no country blocked, its map is empty. The full DB-IP data, written as plain address blocks, would need about 1.4 million entries and more than 400 MB. HomeProxy makes the map smaller in two ways:
 
 - A wide block carries the most common country of its range, and narrower blocks carry only the exceptions. This loses nothing.
 - IPv6 addresses are looked up per /32, the smallest block that registries give to an ISP. Each /32 gets the country of its first address. A few IPv6 visitors can get the country of a neighbouring network.
