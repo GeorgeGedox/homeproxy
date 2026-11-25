@@ -186,11 +186,12 @@ A script cannot answer a passphrase prompt. In a script, use `age -r <public key
 1. Do steps 1 to 4 of this page.
 2. Open the setup page, as in step 5.
 3. Enter the setup token from the container log.
-4. Under **Restore from backup**, select the `.tar.gz` file.
-5. Click **Restore backup**.
-6. Wait a few seconds. The dashboard restarts with the certificate from the backup.
-7. Reload the page and accept the certificate warning again.
-8. Log in with the password from the backup.
+4. Click **Restore from backup**.
+5. Select the `.tar.gz` file.
+6. Click **Restore backup**.
+7. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+8. Click **Reload** and accept the certificate warning again.
+9. Log in with the password from the backup.
 
 The restore replaces setup. It works only on an install that is not set up. The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
 

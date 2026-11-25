@@ -6,7 +6,7 @@ import { expect, routeApi, test, type Reply } from "./fixtures";
 
 const status = { setup_required: true, detected: { network: { lan_cidrs: ["192.168.1.0/24"] } }, needs: [] };
 
-test("Restore from backup sends the raw file with the setup token, shows each refusal, then the next steps", async ({ page }) => {
+test("Restore from backup sends the raw file with the setup token, shows each refusal, then the next steps in place of the form", async ({ page }) => {
   const sent: { token?: string; type?: string; size?: number }[] = [];
   const answers: Reply[] = [
     [403, { error: { code: "invalid_setup_token", message: "The setup token is wrong.", field: null } }],
@@ -21,7 +21,10 @@ test("Restore from backup sends the raw file with the setup token, shows each re
     return route.fulfill({ status: code, contentType: "application/json", body: data ? JSON.stringify(data) : "" });
   });
   await page.goto("/setup");
-  const restore = page.getByRole("region", { name: "Restore from backup" });
+  await page.getByRole("tab", { name: "Restore from backup" }).click();
+  const restore = page.getByRole("tabpanel", { name: "Restore from backup" });
+  await restore.getByRole("button", { name: "Restore backup" }).click();
+  await expect(restore).toContainText("Enter the setup token first.");
   await page.getByLabel("Setup token").fill("some-token");
   await restore.getByRole("button", { name: "Restore backup" }).click();
   await expect(restore).toContainText("Choose the backup file.");
@@ -32,8 +35,10 @@ test("Restore from backup sends the raw file with the setup token, shows each re
   await restore.getByRole("button", { name: "Restore backup" }).click();
   await expect(restore).toContainText("This is not a HomeProxy backup.");
   await restore.getByRole("button", { name: "Restore backup" }).click();
-  await expect(restore).toContainText("The backup is restored");
-  await expect(restore).toContainText("accept the certificate warning again");
-  await expect(restore).toContainText("password from the backup");
+  const done = page.getByRole("region", { name: "Backup restored" });
+  await expect(done).toContainText("certificate from the backup");
+  await expect(done).toContainText("warns about the certificate again");
+  await expect(done).toContainText("password from the backup");
+  await expect(page.getByRole("button", { name: "Finish setup" })).toHaveCount(0);
   expect(sent).toEqual(Array(3).fill({ token: "some-token", type: "application/gzip", size: 3 }));
 });
