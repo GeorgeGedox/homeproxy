@@ -41,10 +41,12 @@ describe("draftToRoute", () => {
   });
   it("saves sticky on and off for http, tcp and passthrough, even after the file had it on", () => {
     for (const type of ["http", "tcp", "passthrough"] as const) {
-      const on = draftToRoute({ ...draft, type, listen_port: 2222, sticky: true });
+      const on = draftToRoute({ ...draft, type, listen_port: 2222, upstreams: ["192.168.1.10:80", "192.168.1.11:80"], sticky: true });
       expect(on).toMatchObject({ sticky: true });
       const off = draftToRoute({ ...routeToDraft(on), sticky: false }, on);
       expect(off).toMatchObject({ sticky: false });
+      const single = draftToRoute({ ...routeToDraft(on), upstreams: ["192.168.1.10:80"] }, on);
+      expect(single).toMatchObject({ sticky: false });
     }
   });
   it("turns a zone-default proxied flag into off for passthrough, which has no default", () => {

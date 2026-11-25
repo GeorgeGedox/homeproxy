@@ -144,6 +144,9 @@ export function routeToDraft(route: Route): RouteDraft {
   };
 }
 
+/** Sticky saves as on only with more than one upstream: with one there is nothing to choose between. */
+const sticky = (draft: RouteDraft) => draft.sticky && draft.upstreams.length > 1;
+
 /** The fields every route type shares, and the name of the route being edited (a new route gets one from the server). */
 function common(draft: RouteDraft, original?: Route) {
   const kept = original?.type === draft.type ? original : undefined;
@@ -169,7 +172,7 @@ function httpRoute(draft: RouteDraft, original?: Route): Route {
   return {
     ...common(draft, original), ...hostSettings(draft), type: "http",
     upstreams: draft.upstreams.map((address) => ({ address })),
-    sticky: draft.sticky,
+    sticky: sticky(draft),
     health_check: draft.health_path
       ? { path: draft.health_path, interval: kept?.health_check?.interval ?? "10s" }
       : null,
@@ -196,8 +199,8 @@ export function draftToRoute(draft: RouteDraft, original?: Route): Route {
     } as Route;
   }
   const upstreams = draft.upstreams.map((address) => ({ address }));
-  if (draft.type === "tcp") return { ...common(draft, original), type: "tcp", listen_port: draft.listen_port ?? 0, upstreams, sticky: draft.sticky } as Route;
-  return { ...common(draft, original), ...hostSettings(draft), type: "passthrough", upstreams, sticky: draft.sticky } as Route;
+  if (draft.type === "tcp") return { ...common(draft, original), type: "tcp", listen_port: draft.listen_port ?? 0, upstreams, sticky: sticky(draft) } as Route;
+  return { ...common(draft, original), ...hostSettings(draft), type: "passthrough", upstreams, sticky: sticky(draft) } as Route;
 }
 
 /**
