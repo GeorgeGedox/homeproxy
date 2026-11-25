@@ -49,6 +49,38 @@ test("a TCP port's exposure switch stages that one route", async ({ page, stack 
   await expect(bar).toHaveCount(0);
 });
 
+test("Sticky upstream saves on and off on an HTTP site and on a TCP port", async ({ page, stack }) => {
+  await signIn(page, stack);
+  await addSite(page, stack, "pve.example.dev");
+  await page.getByRole("link", { name: "Add site" }).first().click();
+  await page.getByRole("radio", { name: /TCP port/ }).click();
+  await page.getByLabel("Port", { exact: true }).fill("2223");
+  await page.getByLabel("Upstreams").fill(`${stack.upstream}:80`);
+  await page.getByLabel("Upstreams").press("Enter");
+  await page.getByRole("button", { name: "Stage change" }).click();
+  await apply(page);
+
+  const sticky = page.getByRole("switch", { name: "Sticky upstream" });
+  const rows = [
+    { region: "pve.example.dev", row: /^\/\s*→/ },
+    { region: "Port 2223", row: /^TCP\s*→/ },
+  ];
+  for (const { region, row } of rows) {
+    for (const on of [true, false]) {
+      await page.goto("/routes");
+      await page.getByRole("region", { name: region, exact: true }).getByRole("link", { name: row }).click();
+      await expect(sticky).toBeChecked({ checked: !on });
+      await sticky.click();
+      await page.getByRole("button", { name: "Stage change" }).click();
+      await apply(page);
+
+      await page.goto("/routes");
+      await page.getByRole("region", { name: region, exact: true }).getByRole("link", { name: row }).click();
+      await expect(sticky).toBeChecked({ checked: on });
+    }
+  }
+});
+
 test("an apply's warning is counted in its toast and stays listed on Overview", async ({ page, stack }) => {
   await signIn(page, stack);
   await addSite(page, stack, "docs.example.dev", "/guide");

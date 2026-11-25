@@ -25,6 +25,11 @@ const codes = [
       <UFormField label="Upstreams" name="upstreams" description="host:port or a URL, press Enter after each">
         <UInputTags v-model="draft.upstreams" add-on-blur :placeholder="draft.upstreams.length ? undefined : '192.168.1.10:8080'" class="w-full" />
       </UFormField>
+      <USwitch
+        v-model="draft.sticky"
+        label="Sticky upstream"
+        description="Send each client to the same upstream while it is up. Use it for apps that keep a session on one node, such as the Proxmox console."
+      />
       <USwitch v-if="show('tls_upstream')" v-model="draft.tls_enabled" label="Connect over HTTPS" />
       <UFormField v-if="show('health_check')" label="Health check path" name="health_check.path" description="Empty checks that the port answers">
         <UInput v-model="draft.health_path" placeholder="/health" class="w-full" />

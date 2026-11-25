@@ -32,6 +32,7 @@ For each backend of the old config, open **Routes** and click **Add site**. Use 
 | `acl lan src ...` with `http-request deny` | Exposure `lan`. HomeProxy returns 403 to a source outside `network.lan_cidrs` |
 | `userlist` with `http-request auth` | Auth `basic`. Enter each user and a new password. See [Basic auth](basic-auth.md) |
 | `http-request set-header`, `http-response set-header` | The route's `request_headers` and `response_headers` |
+| `balance source` | **Sticky upstream** on the route (`sticky: true`) |
 | `mode tcp` frontend on its own port | A `tcp` route with that listen port |
 | `req.ssl_sni` rules that pass TLS through | A `passthrough` route with the host |
 | Anything else | A file `/data/config/includes/<name>.cfg`. HAProxy loads it after the generated files, and apply checks it with `haproxy -c` |

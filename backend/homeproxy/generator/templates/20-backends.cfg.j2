@@ -20,6 +20,10 @@ backend {{ backend.name | token }}
     http-request deny deny_status 400 unless { path {{ backend.strip_prefix | path_prefix }} } || { path_beg {{ backend.strip_prefix | path_prefix }}/ }
     http-request set-path /%[path,bytes({{ (backend.strip_prefix | length + 1) | number }})]
 {% endif %}
+{% if backend.sticky %}
+    # Each client address keeps one upstream while it is up. Cloudflare routes hash the visitor.
+    balance source
+{% endif %}
 {% if backend.websocket %}
     timeout tunnel 1h
 {% endif %}
@@ -46,6 +50,9 @@ backend {{ backend.name | token }}
 {% for backend in stream_backends %}
 
 backend {{ backend.name | token }} from tcp
+{% if backend.sticky %}
+    balance source
+{% endif %}
 {% for server in backend.servers %}
     server {{ server | token }} {{ server | token }} check inter {{ tcp_check_interval | token }}
 {% endfor %}

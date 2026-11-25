@@ -41,6 +41,7 @@ class StreamBackend:
     name: str
     listen_port: int | None
     servers: tuple[str, ...]
+    sticky: bool
 
 
 def upstream_addresses(route: HttpRoute | PassthroughRoute | TcpRoute) -> list[str]:
@@ -54,7 +55,8 @@ def upstream_addresses(route: HttpRoute | PassthroughRoute | TcpRoute) -> list[s
 def stream_backend(route: PassthroughRoute | TcpRoute) -> StreamBackend:
     """Return the backend of a `passthrough` or `tcp` route."""
     port = route.listen_port if isinstance(route, TcpRoute) else None
-    return StreamBackend(BACKEND_PREFIX + route.name, port, tuple(upstream_addresses(route)))
+    addresses = tuple(upstream_addresses(route))
+    return StreamBackend(BACKEND_PREFIX + route.name, port, addresses, route.sticky)
 
 
 def sni_entries(routes: Iterable[PassthroughRoute]) -> Iterator[str]:

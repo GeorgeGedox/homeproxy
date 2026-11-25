@@ -1,0 +1,8 @@
+version: 1
+name: plain
+type: http
+hosts: [app.example.com]
+exposure: lan
+upstreams:
+  - address: 192.168.1.60:80
+  - address: 192.168.1.61:80

@@ -86,6 +86,24 @@ response_headers:            # sent to the client with each response
 - A request header cannot be `X-Forwarded-For`, `X-Forwarded-Proto` or `CF-Connecting-IP`, which carry the real client to the upstream. See [Real client IP](real-client-ip.md).
 - A response header cannot be `Host` or `CF-Connecting-IP`, which mean something only on a request.
 
+## Sticky upstream
+
+A route can have more than one upstream. HAProxy normally sends each new connection to the next upstream in turn. Some apps keep a session on one node, such as the Proxmox console. These apps fail when a request of one client goes to another node.
+
+To keep each client on one upstream, open the route, go to **To**, and turn on **Sticky upstream**. It is off by default. The switch is there for `http`, `passthrough` and `tcp` routes.
+
+```yaml
+# routes/pve.yaml
+upstreams:
+  - address: 192.168.1.20:8006
+  - address: 192.168.1.21:8006
+sticky: true                 # default false
+```
+
+- HAProxy picks the upstream from the address of the client (`balance source`). A client stays on its upstream while that upstream is up. If it goes down, the client moves to another upstream. When it comes back, some clients can move back.
+- All clients that share one address, such as clients behind one router, use the same upstream. The load can then be uneven.
+- On a route that Cloudflare proxies, HAProxy uses the address of the visitor, not the address of Cloudflare. See [Real client IP behind Cloudflare](real-client-ip.md).
+
 ## `redirect` routes
 
 In the editor, pick **Redirect**, enter the hosts and the target URL, and choose the kind of redirect.

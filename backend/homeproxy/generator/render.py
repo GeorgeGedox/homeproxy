@@ -135,6 +135,7 @@ class _Backend:
     request_headers: tuple[tuple[str, str], ...]
     response_headers: tuple[tuple[str, str], ...]
     servers: tuple[_Server, ...]
+    sticky: bool
     users: tuple[tuple[str, SecretStr], ...]
 
 
@@ -242,6 +243,7 @@ def _backend(route: HttpRoute, basic_auth: BasicAuth) -> _Backend:
         request_headers=_sorted_headers(route, "request_headers", route.request_headers),
         response_headers=_sorted_headers(route, "response_headers", route.response_headers),
         servers=tuple(servers),
+        sticky=route.sticky,
         users=_users(route, basic_auth),
     )
 

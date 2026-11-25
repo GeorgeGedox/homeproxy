@@ -1,0 +1,4 @@
+route-plain 1
+route-proxmox 1
+route-ssh 1
+route-vault 1

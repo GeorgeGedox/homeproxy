@@ -39,6 +39,14 @@ describe("draftToRoute", () => {
     const adding = draftToRoute({ ...routeToDraft(original), geoip_mode: "add" }, original);
     expect(JSON.parse(JSON.stringify(adding.geoip))).not.toHaveProperty("mode");
   });
+  it("saves sticky on and off for http, tcp and passthrough, even after the file had it on", () => {
+    for (const type of ["http", "tcp", "passthrough"] as const) {
+      const on = draftToRoute({ ...draft, type, listen_port: 2222, sticky: true });
+      expect(on).toMatchObject({ sticky: true });
+      const off = draftToRoute({ ...routeToDraft(on), sticky: false }, on);
+      expect(off).toMatchObject({ sticky: false });
+    }
+  });
   it("turns a zone-default proxied flag into off for passthrough, which has no default", () => {
     expect(draftToRoute({ ...draft, type: "passthrough", cloudflare_proxied: null })).toMatchObject({ cloudflare: { proxied: false } });
   });
