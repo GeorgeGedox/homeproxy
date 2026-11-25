@@ -169,16 +169,15 @@
       "separateMinorPatch": true
     },
     {
-      "description": "Python follows Debian trixie's minor version: patches in mise.toml merge alone, a new minor waits",
+      "description": "Python follows the Debian minor version of the HAProxy image, so a new minor moves by hand with that image. Patches in mise.toml merge alone",
       "matchDepNames": [
         "python"
       ],
-      "groupName": "python",
       "matchUpdateTypes": [
         "minor",
         "major"
       ],
-      "automerge": false
+      "enabled": false
     },
     {
       "description": "requires-python moves only with the base image, by hand",
@@ -203,12 +202,11 @@
       "groupName": "CrowdSec SPOA bouncer"
     },
     {
-      "description": "GitHub Actions, majors included, merge alone once CI passes",
+      "description": "GitHub Actions merge alone once CI passes. A major waits: CI does not run the release workflows",
       "matchManagers": [
         "github-actions"
       ],
-      "groupName": "GitHub Actions",
-      "automerge": true
+      "groupName": "GitHub Actions"
     },
     {
       "description": "A new runner OS is not an action: it waits",

@@ -74,7 +74,7 @@ gh attestation verify oci://ghcr.io/georgegedox/homeproxy:0.2.1 --repo GeorgeGed
 
 - Renovate opens its pull requests into `dev` on Monday mornings. It ignores a release that is less than 3 days old.
 - A new HAProxy patch and a security fix do not wait. Renovate opens their pull requests at any time.
-- A pull request merges by itself when all tests pass. These updates wait for the maintainer: a major version, a new HAProxy LTS branch, a new Python minor version and a new minor version of the CrowdSec SPOA bouncer.
+- A pull request merges by itself when all tests pass. These updates wait for the maintainer: a major version, also of a GitHub Action, a new HAProxy LTS branch and a new minor version of the CrowdSec SPOA bouncer. Renovate does not open a pull request for a new Python minor version, because Python follows the Debian version of the HAProxy image.
 
 The type of each commit on `dev` sets the next release:
 
