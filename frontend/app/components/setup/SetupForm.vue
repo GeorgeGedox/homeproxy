@@ -12,6 +12,7 @@ const found = computed(() => [
 </script>
 
 <template>
+  <div class="space-y-4">
   <form class="space-y-4" @submit.prevent="submit">
     <div class="space-y-1">
       <h1 class="text-lg text-highlighted">Set up HomeProxy</h1>
@@ -54,4 +55,6 @@ const found = computed(() => [
     <UButton type="submit" block :loading="busy" :label="busy ? 'Applying the first config…' : 'Finish setup'" />
     <p v-if="busy" class="text-center text-xs text-muted">This takes a few seconds. Then you are signed in.</p>
   </form>
+  <SetupRestore v-model:token="form.token" />
+  </div>
 </template>
