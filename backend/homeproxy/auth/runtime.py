@@ -31,6 +31,7 @@ from homeproxy.auth.ratelimit import LoginThrottle
 from homeproxy.auth.sessions import Session, SessionSigner
 from homeproxy.auth.setup_token import SetupToken, announce
 from homeproxy.auth.sources import SourcePolicy, lan_policy, private_policy
+from homeproxy.backup.token import token_matches
 from homeproxy.store.errors import StoreError
 from homeproxy.store.files import Store
 
@@ -188,6 +189,27 @@ class AuthRuntime:
         except errors.AuthError:
             return None
         return signer.verify(cookie, current.password_hash, current.session_ttl)
+
+    def backup_token_valid(self, peer: str, token: str) -> bool:
+        """Whether `token` is the backup token. A wrong one counts as a failed login from `peer`.
+
+        Raises an `AuthError` 429 while the client is throttled. Blocks on a file read, so call it
+        from a worker thread.
+        """
+        wait = self.throttle.retry_after(peer)
+        if wait is not None:
+            raise errors.throttled(wait)
+        try:
+            valid = token_matches(self.store.load_secrets(), token)
+        except (OSError, StoreError) as error:
+            logger.error("cannot load %s: %s", self.store.secrets_path, error)
+            raise errors.unavailable(
+                "secrets.yaml cannot be read. Check the container log."
+            ) from None
+        if not valid:
+            self.throttle.record_failure(peer)
+            logger.warning("wrong backup token from %s", peer)
+        return valid
 
     def logout(self, session: Session) -> None:
         """End a session before its cookie expires."""

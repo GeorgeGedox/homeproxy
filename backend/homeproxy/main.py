@@ -12,6 +12,8 @@ from homeproxy.api import (
     apply,
     audit,
     auth,
+    backup,
+    backup_restore,
     basic_auth,
     certificates,
     changes,
@@ -145,6 +147,8 @@ def create_app() -> FastAPI:
     for module in (
         setup,
         auth,
+        backup,
+        backup_restore,
         settings,
         keys,
         basic_auth,
