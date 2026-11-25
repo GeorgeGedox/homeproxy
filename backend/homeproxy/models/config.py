@@ -12,9 +12,9 @@ from homeproxy.models.base import StrictModel
 from homeproxy.models.domain import Domain
 from homeproxy.models.fields import (
     BaseUrl,
+    ConfigVersion,
     CountryCode,
     Duration,
-    FileVersion,
     Hostname,
     IpOrCidr,
     IPv4,
@@ -223,7 +223,7 @@ class Notifications(StrictModel):
 class Config(StrictModel):
     """The whole of `config.yaml`."""
 
-    version: FileVersion
+    version: ConfigVersion
     dashboard: Dashboard
     network: Network
     cloudflare: CloudflareSettings = Field(default_factory=CloudflareSettings)

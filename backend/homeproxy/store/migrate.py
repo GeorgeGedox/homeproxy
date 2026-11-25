@@ -1,9 +1,11 @@
 """Schema migrations for the files that carry `version:`.
 
-Every file format is at version 1, so `MIGRATIONS` is empty. To change a format, raise
-`CURRENT_VERSION` and `homeproxy.models.fields.FileVersion`, and add a step for each file kind that
-changed and an empty-bodied step for each that did not. A step edits the round-trip tree in place to
-move it one version up, so comments and key order survive. The runner sets `version`.
+Each file kind (`config`, `route`, `secrets`) has its own version, and every kind is at version 1,
+so `MIGRATIONS` is empty. To change one format, raise that kind's entry in `CURRENT_VERSIONS` and
+its version type in `homeproxy.models.fields`, and add a step under the old version in `MIGRATIONS`.
+The other kinds stay as they are, and their files are not rewritten. A step edits the round-trip
+tree in place to move it one version up, so comments and key order survive. The runner sets
+`version`. Steps are never deleted, so an install can jump several releases.
 
 `migrate_files` does nothing to a file that is already current, so a start never rewrites a
 hand-edited file. It migrates and validates everything in memory first, so a bad file stops the run
@@ -13,9 +15,15 @@ between versions until the next run finishes the rest.
 
 Backups are under `migration-backups/<UTC time>/`, with the same relative paths as the data
 directory. The backup directory is private and each file is 0600, because backups hold
-`secrets.yaml`. They are never removed automatically.
+`secrets.yaml`.
+
+`copy_for_upgrade` also copies `config/` and `secrets/` there, at the first start of a different
+HomeProxy version, so an upgrade always leaves a way back. `prune_backups` keeps the newest
+`KEEP_BACKUPS` directories, copies and migration backups alike. The version that last started is
+in `migration-backups/started-version`.
 """
 
+import shutil
 from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from pathlib import Path
@@ -35,7 +43,14 @@ type Migration = Callable[[CommentedMap], None]
 """Edits a tree in place, from the version it is registered under to the next one."""
 type Migrations = Mapping[FileKind, Mapping[int, Migration]]
 
-CURRENT_VERSION: Final = 1
+CURRENT_VERSIONS: Final[Mapping[FileKind, int]] = {"config": 1, "route": 1, "secrets": 1}
+"""The version of each file kind that this release reads and writes."""
+
+KEEP_BACKUPS: Final = 5
+"""The number of directories kept in `migration-backups/`."""
+
+STARTED_VERSION_FILE: Final = "started-version"
+_STAMP_FORMAT: Final = "%Y%m%dT%H%M%S%fZ"
 
 MIGRATIONS: Final[Migrations] = {"config": {}, "route": {}, "secrets": {}}
 
@@ -63,14 +78,16 @@ def migrate_tree(
     file: str,
     *,
     migrations: Migrations = MIGRATIONS,
-    target: int = CURRENT_VERSION,
+    target: int | None = None,
 ) -> bool:
-    """Bring a tree up to `target` in place, and return whether anything changed.
+    """Bring a tree up to `target` (the kind's current version by default) in place, and return
+    whether anything changed.
 
     A file newer than `target` raises `MigrationError`, because this release cannot read it. A
     failed step also raises it, with only the file and the version, because a step's own error can
     quote a value from the file.
     """
+    target = CURRENT_VERSIONS[kind] if target is None else target
     version = file_version(tree, file)
     if version > target:
         raise MigrationError(f"{file!r} has version {version}, and this release supports {target}")
@@ -89,6 +106,19 @@ def migrate_tree(
         version += 1
         tree["version"] = version
     return version != start
+
+
+def migrate_bytes(
+    data: bytes, kind: FileKind, file: str, *, migrations: Migrations = MIGRATIONS
+) -> bytes:
+    """Return the content of one file migrated to the current version, or `data` if it is current.
+
+    Nothing is validated or written. Raises `ParseError` or `MigrationError`.
+    """
+    tree = parse_tree(data, file)
+    if not migrate_tree(tree, kind, file, migrations=migrations):
+        return data
+    return dump_tree(tree, file)
 
 
 def _plan(
@@ -126,8 +156,7 @@ def migrate_files(
     if not pending:
         return []
 
-    stamp = datetime.now(UTC).strftime("%Y%m%dT%H%M%S%fZ")
-    backups = store.migration_backups_dir / stamp
+    backups = store.migration_backups_dir / datetime.now(UTC).strftime(_STAMP_FORMAT)
     for item in pending:
         backup = backups / item.path.relative_to(store.root)
         ensure_dir(backup.parent)
@@ -135,3 +164,42 @@ def migrate_files(
     for item in pending:
         atomic_write(item.path, item.migrated, mode=item.mode)
     return [item.path for item in pending]
+
+
+def copy_for_upgrade(store: Store, lock: HeldLock, version: str) -> Path | None:
+    """Copy `config/` and `secrets/` to a new backup directory when `version` is not the one that
+    last started, and return the directory. The same version, or an install with no files, copies
+    nothing. The version is recorded only after the copy, so a failed copy is tried again.
+
+    Raises `OSError` when the copy fails.
+    """
+    lock.require(store.lock_path)
+    marker = store.migration_backups_dir / STARTED_VERSION_FILE
+    try:
+        if marker.read_text().strip() == version:
+            return None
+    except FileNotFoundError:
+        pass
+    files = [
+        path
+        for directory in (store.config_dir, store.secrets_path.parent)
+        for path in sorted(directory.rglob("*"))
+        if path.is_file()
+    ]
+    target = store.migration_backups_dir / datetime.now(UTC).strftime(_STAMP_FORMAT)
+    for path in files:
+        copy = target / path.relative_to(store.root)
+        ensure_dir(copy.parent)
+        atomic_write(copy, path.read_bytes(), mode=0o600)
+    ensure_dir(store.migration_backups_dir)
+    atomic_write(marker, f"{version}\n".encode(), mode=0o600)
+    return target if files else None
+
+
+def prune_backups(store: Store) -> None:
+    """Remove all but the newest `KEEP_BACKUPS` directories in `migration-backups/`."""
+    if not store.migration_backups_dir.is_dir():
+        return
+    directories = sorted(path for path in store.migration_backups_dir.iterdir() if path.is_dir())
+    for path in directories[:-KEEP_BACKUPS]:
+        shutil.rmtree(path)

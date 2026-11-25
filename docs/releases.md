@@ -42,23 +42,27 @@ To update, do the steps in [Install](install.md#update). The [releases page](htt
 
 ## Go back to an earlier version
 
-A release can change the format of the config files. At the first start, it changes your files to the new format. It keeps a copy of the initial files in `/data/migration-backups/<time>/`, with the same paths as in `/data`. An earlier release cannot read the new format.
+Files only move forward. A release can change the format of the config files. At the first start of a new version, it changes your files to the new format. An earlier version cannot read the new format.
 
-If you go back to an earlier version and the newer version did not change the files:
+At the first start of each new version, before it changes any file, HomeProxy copies `/data/config/` and `/data/secrets/` to `/data/migration-backups/<time>/`, with the same paths as in `/data`. HomeProxy keeps the last 5 directories in `/data/migration-backups/`.
 
-1. Set `HOMEPROXY_IMAGE` to the earlier `X.Y.Z` tag.
-2. Run `docker compose up -d`.
+To go back to an earlier version, use one of these ways.
 
-If the newer version changed the files:
+To restore the full backup that you made before the update:
+
+1. Install the earlier version on a fresh install. Set `HOMEPROXY_IMAGE` to the earlier `X.Y.Z` tag.
+2. Open the setup page and click **Restore from backup**. Use the steps in [Restore on a new machine](install.md#restore-on-a-new-machine).
+
+To use the copy that HomeProxy made at the update:
 
 1. Stop the stack with `docker compose stop`.
 2. Copy the files from the newest directory in `/data/migration-backups/` back to the same paths in `/data`.
 3. Set `HOMEPROXY_IMAGE` to the earlier `X.Y.Z` tag.
 4. Run `docker compose up -d`.
 
-The copied files do not include the changes that you made after the update.
+Both ways lose the changes that you made after the update.
 
-If you start an earlier version with files in a newer format, the dashboard starts, but it cannot read the files. Its log shows a message such as `'config.yaml' has version 2, and this release supports 1`. Do the steps above to copy back the initial files.
+If you start an earlier version with files in a newer format, the dashboard starts, but it cannot read the files. Its log shows a message such as `'config.yaml' has version 2, and this release supports 1`. Do the steps above.
 
 ## Verify an image
 

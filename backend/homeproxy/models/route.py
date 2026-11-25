@@ -25,7 +25,6 @@ from homeproxy.models.fields import (
     CountryCode,
     DnsTarget,
     Duration,
-    FileVersion,
     HeaderName,
     HeaderValue,
     Hostname,
@@ -36,6 +35,7 @@ from homeproxy.models.fields import (
     Port,
     RedirectCode,
     RedirectUrl,
+    RouteVersion,
     unique,
 )
 
@@ -110,7 +110,7 @@ class HttpRoute(StrictModel):
     boundary wins. `strip_prefix` removes it from the path the upstream sees.
     """
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["http"]
     hosts: RouteHosts
@@ -133,7 +133,7 @@ class HttpRoute(StrictModel):
 class PassthroughRoute(StrictModel):
     """HAProxy reads the SNI name and forwards the encrypted stream to the upstream."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["passthrough"]
     hosts: RouteHosts
@@ -148,7 +148,7 @@ class PassthroughRoute(StrictModel):
 class TcpRoute(StrictModel):
     """HAProxy listens on its own port and forwards raw TCP to the upstream."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["tcp"]
     listen_port: Port
@@ -181,7 +181,7 @@ class Redirect(StrictModel):
 class RedirectRoute(StrictModel):
     """HAProxy answers every request on the hosts with a redirect, and forwards nothing."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["redirect"]
     hosts: RouteHosts

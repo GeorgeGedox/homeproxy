@@ -27,6 +27,7 @@ test-results/
 /data/
 secrets.yaml
 !examples/data/secrets/secrets.yaml
+!backend/tests/fixtures/file-versions/*/secrets/secrets.yaml
 .env
 .env.*
 mise.local.toml
