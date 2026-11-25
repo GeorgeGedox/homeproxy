@@ -7,8 +7,10 @@ published to random loopback ports, so parallel checkouts cannot clash.
 """
 
 import http.client
+import ipaddress
 import json
 import os
+import random
 import socket
 import ssl
 import time
@@ -27,9 +29,10 @@ from homeproxy.generator import (
 )
 from homeproxy.logs import SYSLOG_SOCKET
 from homeproxy.models import Config, parse_route
+from homeproxy.store import load_tree
 from tests.conftest import wait_until
 from tests.golden.live_proxy import CollectorThread
-from tests.integration.crowdsec_lab import CROWDSEC_IMAGE
+from tests.integration.crowdsec_lab import CROWDSEC_IMAGE, REPO_ROOT
 from tests.integration.haproxy_live import docker
 
 CROWDSEC_SYSLOG_PORT = 514
@@ -46,6 +49,29 @@ TCP_PORT = 9100
 UPSTREAM = "127.0.0.1:9000"
 STARTUP_TIMEOUT = 180.0
 SETTLE = 3.0
+SCENARIO = "homeproxy/unknown-host"
+SCENARIO_CONFIG = "crowdsec_unknown_host"
+SCENARIO_TARGET = "/etc/crowdsec/scenarios/homeproxy-unknown-host.yaml"
+TEST_NET = ipaddress.IPv4Network("198.51.100.0/24")
+"""TEST-NET-2. CrowdSec's default whitelist drops private sources, and this range is not private."""
+BAN_TIMEOUT = 60.0
+
+# A client request from its own address. It sends the SNI, which may be empty, and the Host header
+# of each "<sni>|<host>|<path>" argument over a new TLS connection, and prints each status.
+CLIENT = """
+import http.client, socket, ssl, sys
+context = ssl.create_default_context()
+context.check_hostname = False
+context.verify_mode = ssl.CERT_NONE
+address, port = sys.argv[1], int(sys.argv[2])
+for request in sys.argv[3:]:
+    sni, host, path = request.split("|")
+    connection = http.client.HTTPSConnection(address, port, timeout=10, context=context)
+    raw = socket.create_connection((address, port), timeout=10)
+    connection.sock = context.wrap_socket(raw, server_hostname=sni or None)
+    connection.request("GET", path, headers={"Host": host})
+    print(connection.getresponse().status)
+"""
 
 # Each name is unique to this run, so a line in any log belongs to this test.
 TEST_LAYERS = f"""
@@ -82,6 +108,10 @@ class Setup:
     haproxy: str
     collector: CollectorThread
     ports: dict[int, int]
+    network: str
+    subnet: ipaddress.IPv4Network
+    haproxy_address: str
+    image: str
 
     def counts(self) -> Counts:
         parser = crowdsec_metrics(self.crowdsec).get("parsers", {}).get(HAPROXY_PARSER, {})
@@ -92,6 +122,54 @@ class Setup:
             http_lines=sum(1 for entry in entries if entry.kind == "http"),
             tcp_lines=sum(1 for entry in entries if entry.kind == "tcp"),
         )
+
+
+def scenario_text() -> str:
+    """Return the scenario that `deploy/compose.crowdsec.yaml` installs, after a check that the dev
+    stack and `docs/crowdsec.md` install the same one."""
+    deploy = REPO_ROOT / "deploy"
+    text = str(load_tree(deploy / "compose.crowdsec.yaml")["configs"][SCENARIO_CONFIG]["content"])
+    dev = load_tree(deploy / "compose.dev.yaml")["configs"][SCENARIO_CONFIG]["content"]
+    assert str(dev) == text
+    # The docs show it in the same `configs` block, six spaces in.
+    quoted = "".join(f"      {line}" if line.strip() else line for line in text.splitlines(True))
+    assert quoted in (REPO_ROOT / "docs" / "crowdsec.md").read_text()
+    return text
+
+
+def public_network(name: str) -> ipaddress.IPv4Network:
+    """Create a Docker network on a free block of `TEST_NET`, so its clients have public addresses.
+    Another run may hold a block, so the blocks are tried in random order."""
+    blocks = list(TEST_NET.subnets(new_prefix=28))
+    random.shuffle(blocks)
+    for block in blocks:
+        if docker("network", "create", f"--subnet={block}", name, check=False):
+            return block
+    pytest.fail(f"no free /28 in {TEST_NET} for a Docker network")
+
+
+def ask(setup: Setup, client: str, *requests: str) -> list[int]:
+    """Send `requests`, each "<sni>|<host>|<path>", from a container at `client` to HAProxy."""
+    out = docker(
+        "run",
+        "--rm",
+        f"--network={setup.network}",
+        f"--ip={client}",
+        "--entrypoint=/usr/bin/python3",
+        setup.image,
+        "-c",
+        CLIENT,
+        setup.haproxy_address,
+        str(HTTPS_PORT),
+        *requests,
+    )
+    return [int(status) for status in out.split()]
+
+
+def decisions(setup: Setup, address: str) -> list[dict[str, Any]]:
+    out = docker("exec", setup.crowdsec, "cscli", "decisions", "list", "-i", address, "-o", "json")
+    found: list[dict[str, Any]] | None = json.loads(out)
+    return found or []
 
 
 def crowdsec_metrics(container: str) -> dict[str, Any]:
@@ -166,21 +244,26 @@ def write_release_dir(data_dir: Path, crowdsec_address: str) -> None:
     (data_dir / "generated").symlink_to("releases/first")
 
 
-@pytest.fixture
-def setup(tmp_path: Path) -> Iterator[Setup]:
+@pytest.fixture(scope="module")
+def setup(tmp_path_factory: pytest.TempPathFactory) -> Iterator[Setup]:
+    """HAProxy and CrowdSec on a network of public addresses. CrowdSec reads HAProxy's lines."""
     project = os.environ.get("COMPOSE_PROJECT_NAME")
     if not project:
         pytest.exit("COMPOSE_PROJECT_NAME is not set. Run `mise run test-integration`.", 2)
     image = f"{os.environ.get('IMAGE_NAME', 'homeproxy')}:{project}"
     prefix = f"{project}-test-logs-{uuid.uuid4().hex[:8]}"
     network, crowdsec, haproxy = f"{prefix}-net", f"{prefix}-crowdsec", f"{prefix}-haproxy"
+    tmp_path = tmp_path_factory.mktemp("crowdsec")
     acquisition = tmp_path / "acquis.yaml"
     acquisition.write_text(ACQUISITION)
-    acquisition.chmod(0o644)
+    scenario = tmp_path / "scenario.yaml"
+    scenario.write_text(scenario_text())
+    for mounted in (acquisition, scenario):
+        mounted.chmod(0o644)
     data_dir, run_dir = tmp_path / "data", tmp_path / "run"
     data_dir.mkdir()
     run_dir.mkdir()
-    docker("network", "create", network)
+    subnet = public_network(network)
     try:
         docker(
             "run",
@@ -192,6 +275,7 @@ def setup(tmp_path: Path) -> Iterator[Setup]:
             # The database is thrown away with the container.
             "--env=CROWDSEC_BYPASS_DB_VOLUME_CHECK=true",
             f"--volume={acquisition}:/etc/crowdsec/acquis.d/haproxy.yaml:ro",
+            f"--volume={scenario}:{SCENARIO_TARGET}:ro",
             CROWDSEC_IMAGE,
         )
         address = docker(
@@ -224,7 +308,11 @@ def setup(tmp_path: Path) -> Iterator[Setup]:
                 port: int(docker("port", haproxy, f"{port}/tcp").splitlines()[0].rpartition(":")[2])
                 for port in (HTTPS_PORT, TCP_PORT)
             }
-            yield Setup(crowdsec, haproxy, collector, ports)
+            template = f'{{{{(index .NetworkSettings.Networks "{network}").IPAddress}}}}'
+            address = docker("inspect", "--format", template, haproxy)
+            running = Setup(crowdsec, haproxy, collector, ports, network, subnet, address, image)
+            wait_for_crowdsec(running)
+            yield running
     except BaseException:
         for container in (haproxy, crowdsec):
             print(f"--- {container}\n{docker('logs', '--tail', '60', container, check=False)}")
@@ -234,16 +322,16 @@ def setup(tmp_path: Path) -> Iterator[Setup]:
         docker("network", "rm", network, check=False)
 
 
-def test_crowdsec_parses_access_lines(setup: Setup) -> None:
-    """That each connection is logged once, behind the SNI layer too, is in
-    `tests/golden/test_golden_logs.py`."""
-    https = setup.ports[HTTPS_PORT]
+def wait_for_crowdsec(setup: Setup) -> None:
+    """Wait until CrowdSec reads HAProxy's lines.
 
-    # CrowdSec installs its collection first. Lines it receives before it listens are lost.
-    # HAProxy may not listen yet either: Docker's port forward then resets or closes the
-    # connection, which shows as a connection or TLS error.
+    CrowdSec installs its collection first. Lines it receives before it listens are lost. HAProxy
+    may not listen yet either: Docker's port forward then resets or closes the connection, which
+    shows as a connection or TLS error.
+    """
+
     def crowdsec_receives() -> bool:
-        assert https_request(https, "app.example.com", "/warm-up") == 200
+        assert https_request(setup.ports[HTTPS_PORT], "app.example.com", "/warm-up") == 200
         return setup.counts().parser_hits > 0
 
     wait_until(
@@ -253,6 +341,12 @@ def test_crowdsec_parses_access_lines(setup: Setup) -> None:
         interval=1.0,
         not_yet=(ConnectionError, ssl.SSLError),
     )
+
+
+def test_crowdsec_parses_access_lines(setup: Setup) -> None:
+    """That each connection is logged once, behind the SNI layer too, is in
+    `tests/golden/test_golden_logs.py`."""
+    https = setup.ports[HTTPS_PORT]
     # A warm-up line still on its way would count below. Some were lost, so no count says when
     # the last one is in.
     time.sleep(SETTLE)
@@ -278,3 +372,44 @@ def test_crowdsec_parses_access_lines(setup: Setup) -> None:
     assert after.http_lines - before.http_lines == http_lines
     assert after.tcp_lines - before.tcp_lines == tcp_lines
     assert {entry.route for entry in setup.collector.entries() if entry.kind == "tcp"} == {"game"}
+
+
+def test_a_client_that_asks_twice_for_an_unknown_host_is_banned(setup: Setup) -> None:
+    """The scenario of `docs/crowdsec.md`. One request for an unknown host, such as a mistyped
+    address, does not ban, and neither does the favicon a browser asks for after it. A visitor of a
+    site never counts."""
+    once, browser, visitor, twice = (str(setup.subnet[index]) for index in range(10, 14))
+    bare_ip = f"|{setup.haproxy_address}|/"
+    before = setup.counts()
+    poured_before = scenario_pours(setup)
+
+    assert ask(setup, once, bare_ip) == [404]
+    unknown = "unknown.example.net|unknown.example.net"
+    assert ask(setup, browser, f"{unknown}|/", f"{unknown}|/favicon.ico") == [404, 404]
+    site = "app.example.com|app.example.com"
+    assert ask(setup, visitor, f"{site}|/", f"{site}|/other") == [200, 200]
+    assert ask(setup, twice, bare_ip, bare_ip) == [404, 404]
+
+    wait_until(lambda: decisions(setup, twice), "a ban of the client", timeout=BAN_TIMEOUT)
+    # Every line is in: the scenario took the 4 that count, and the parser read all 7.
+    wait_until(
+        lambda: (
+            scenario_pours(setup) - poured_before >= 4
+            and setup.counts().parser_hits - before.parser_hits >= 7
+        ),
+        "CrowdSec to read every line",
+        timeout=BAN_TIMEOUT,
+        details=lambda: (
+            f"{scenario_pours(setup) - poured_before} pours, "
+            f"{setup.counts().parser_hits - before.parser_hits} lines, "
+            f"scenarios {crowdsec_metrics(setup.crowdsec).get('scenarios')}"
+        ),
+    )
+    assert [decision["scenario"] for decision in decisions(setup, twice)] == [SCENARIO]
+    assert [decisions(setup, client) for client in (once, browser, visitor)] == [[], [], []]
+
+
+def scenario_pours(setup: Setup) -> int:
+    """Return how many lines the scenario has taken."""
+    buckets = crowdsec_metrics(setup.crowdsec).get("scenarios", {})
+    return int(buckets.get(SCENARIO, {}).get("pour", 0))

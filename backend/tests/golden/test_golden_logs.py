@@ -78,7 +78,34 @@ def test_denied_and_unknown_requests_are_logged(outside_proxy: Proxy) -> None:
     assert entries.keys() == {403, 404}
     # A request the LAN rule denies still counts toward its route.
     assert entries[403].route == "private"
-    assert (entries[404].backend, entries[404].route) == ("be_not_found", None)
+    assert (entries[404].backend, entries[404].route) == ("be_unknown_host", None)
+
+
+def test_only_a_host_that_no_route_serves_is_logged_as_unknown(
+    data_dir: Path, haproxy_image: str
+) -> None:
+    """The CrowdSec scenario in `docs/crowdsec.md` bans a client that asks twice for an unknown
+    host. A host that a route serves, or served before it was switched off, is never unknown, even
+    on a path or a port that it does not answer on."""
+    routes = (
+        plain_route("app"),
+        plain_route("api", hosts=["paths.example.com"], path_prefix="/api"),
+        plain_route("off", enabled=False),
+        plain_route("plain", hosts=["plain.example.net"]),
+    )
+    domains = {"domains": [CLOUDFLARE_ZONE, {"zone": "example.net"}]}
+    path = _marker_path()
+    with running_proxy(data_dir, NOT_THE_CLIENT, haproxy_image, routes, domains) as proxy:
+        hosts = ["unknown.example.com", "paths.example.com", "off.example.com", "plain.example.net"]
+        for host in hosts:
+            assert tls_request(proxy.https_port, host, host, path).startswith("HTTP/1.1 404")
+        found = _wait_for_entries(proxy, _for_path(path), len(hosts))
+    assert [(entry.sni, entry.backend, entry.route) for entry in found] == [
+        ("unknown.example.com", "be_unknown_host", None),
+        ("paths.example.com", "be_not_found", None),
+        ("off.example.com", "be_not_found", None),
+        ("plain.example.net", "be_not_found", None),
+    ]
 
 
 def test_http_redirect_is_logged_without_tls(outside_proxy: Proxy) -> None:

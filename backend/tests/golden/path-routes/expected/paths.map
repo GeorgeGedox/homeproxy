@@ -1,3 +1,4 @@
+docs.example.com/ be_not_found
 docs.example.com/v1.2_x-y/ route-docs
 site.example.com/ route-site
 site.example.com/api/ route-api

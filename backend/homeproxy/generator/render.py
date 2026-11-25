@@ -30,7 +30,7 @@ from homeproxy.generator.escape import (
     quoted_log_format,
     token,
 )
-from homeproxy.generator.paths import PATHS_MAP, path_entries, path_hosts
+from homeproxy.generator.paths import NOT_FOUND_BACKEND, PATHS_MAP, path_entries, path_hosts
 from homeproxy.generator.redirect import REDIRECT_CODES, REDIRECT_MAP, redirect_entries
 from homeproxy.generator.route_types import (
     BACKEND_PREFIX,
@@ -246,6 +246,19 @@ def _backend(route: HttpRoute, basic_auth: BasicAuth) -> _Backend:
     )
 
 
+def _switched_off_hosts(routes: Iterable[Route], enabled: Iterable[Route]) -> list[str]:
+    """Return the hosts of disabled routes that no enabled route serves. They answer 404 as known
+    hosts, so the CrowdSec scenario does not count their visitors."""
+    served = {host for route in enabled if not isinstance(route, TcpRoute) for host in route.hosts}
+    off = {
+        host
+        for route in routes
+        if not route.enabled and not isinstance(route, TcpRoute)
+        for host in route.hosts
+    }
+    return sorted(off - served)
+
+
 def _lines(lines: Iterable[str]) -> str:
     return "".join(f"{line}\n" for line in sorted(lines))
 
@@ -331,15 +344,17 @@ def render(
     """Render every file of a release, without touching the disk.
 
     `routes` are the routes from `routes/*.yaml`. Rules that need more than one file, such as
-    duplicate hosts, belong to the apply pipeline and are not checked here. A disabled route is left
-    out. A `passthrough` route adds the SNI layer in front of the HTTPS frontend, and `sni.map`. The
-    HTTPS frontend answers 421 for its hosts, so a browser that reuses a connection for one of them
-    connects again. A `tcp` route listens on its own port. A `redirect` route has no backend: its
-    hosts answer with the redirect in `redirect.map`, over HTTPS and plain HTTP alike. Exposure and
-    GeoIP apply to every route type through the same maps, keyed by backend. A host with `http`
-    routes on different paths is in `paths.map` instead of `hosts.map`. An `http` or `redirect`
-    route on a domain with no certificate is in `plain-http.map`: it is served on the HTTP port
-    only, with no HTTPS redirect and no HSTS, and its hosts are unknown on the HTTPS port.
+    duplicate hosts, belong to the apply pipeline and are not checked here. A disabled route has no
+    backend, and its hosts answer 404 as known hosts. A `passthrough` route adds the SNI layer in
+    front of the HTTPS frontend, and `sni.map`. The HTTPS frontend answers 421 for its hosts, so a
+    browser that reuses a connection for one of them connects again. A `tcp` route listens on its
+    own port. A `redirect` route has no backend: its hosts answer with the redirect in
+    `redirect.map`, over HTTPS and plain HTTP alike. Exposure and GeoIP apply to every route type
+    through the same maps, keyed by backend. A host with `http` routes on different paths is in
+    `paths.map` instead of `hosts.map`. An `http` or `redirect` route on a domain with no
+    certificate is in `plain-http.map`: it is served on the HTTP port only, with no HTTPS redirect
+    and no HSTS, and its hosts answer 404 on the HTTPS port. A host that no route serves answers
+    404 from `be_unknown_host`, which the CrowdSec scenario in `docs/crowdsec.md` counts.
 
     `includes` maps the name of each hand-written `includes/<name>.cfg` to its text. Each one is
     copied unchanged to `conf.d/90-include-<name>.cfg`, so HAProxy loads it after the generated
@@ -367,6 +382,7 @@ def render(
     Raises `GeneratorError` for a value that is not safe to write, and its subclass `RouteError` for
     a route that passes its model but that HAProxy would reject or that would break its responses.
     """
+    routes = tuple(routes)
     enabled = sorted((route for route in routes if route.enabled), key=lambda item: item.name)
     http_routes = [route for route in enabled if isinstance(route, HttpRoute)]
     passthrough = [route for route in enabled if isinstance(route, PassthroughRoute)]
@@ -411,10 +427,18 @@ def render(
     paths = path_hosts(http_routes)
     blocks = _country_blocks(enabled, config)
     hosts_map = _lines(
-        f"{token(host)} {token(BACKEND_PREFIX + route.name)}"
-        for route in named
-        for host in route.hosts
-        if host not in paths
+        [
+            *(
+                f"{token(host)} {token(BACKEND_PREFIX + route.name)}"
+                for route in named
+                for host in route.hosts
+                if host not in paths
+            ),
+            *(
+                f"{token(host)} {NOT_FOUND_BACKEND}"
+                for host in _switched_off_hosts(routes, enabled)
+            ),
+        ]
     )
     files = {
         _MAIN_CONFIG: main_config,

@@ -292,9 +292,15 @@ def test_https_port_appears_in_the_redirect_only_when_not_the_default() -> None:
     assert "location https://%[req.hdr(host),host_only]:8444%[pathq] code 301" in custom
 
 
-def test_disabled_route_is_left_out() -> None:
-    release = render(make_config(), [make_route(enabled=False)])
-    assert release.files["hosts.map"] == ""
+def test_disabled_route_is_left_out_and_its_host_stays_known() -> None:
+    """Its host answers 404 as a known host, so the CrowdSec scenario does not count its visitors.
+    A host that an enabled route also serves keeps that route."""
+    off = make_route(enabled=False, hosts=["app.example.com", "both.example.com"])
+    release = render(make_config(), [off, make_route("both")])
+    assert release.files["hosts.map"] == (
+        "app.example.com be_not_found\nboth.example.com route-both\n"
+    )
+    assert "route-app" not in release.files["conf.d/20-backends.cfg"]
 
 
 @pytest.mark.parametrize(
