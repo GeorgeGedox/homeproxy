@@ -89,6 +89,7 @@ def download_backup(request: Request, runtime: Runtime, peer: ClientAddress) -> 
         name,
         media_type="application/gzip",
         filename=archive_name(),
+        headers={"Cache-Control": "no-store"},
         background=BackgroundTask(os.unlink, name),
     )
 
