@@ -90,7 +90,7 @@ response_headers:            # sent to the client with each response
 
 A route can have more than one upstream. HAProxy normally sends each new connection to the next upstream in turn. Some apps keep a session on one node, such as the Proxmox console. These apps fail when a request of one client goes to another node.
 
-To keep each client on one upstream, open the route, go to **To**, and turn on **Sticky upstream**. It is off by default. The switch is there for `http`, `passthrough` and `tcp` routes.
+To keep each client on one upstream, open the route, go to **To**, and turn on **Sticky upstream**. It is off by default. The switch is there for `http`, `passthrough` and `tcp` routes that have more than one upstream.
 
 ```yaml
 # routes/pve.yaml

@@ -25,7 +25,9 @@ const codes = [
       <UFormField label="Upstreams" name="upstreams" description="host:port or a URL, press Enter after each">
         <UInputTags v-model="draft.upstreams" add-on-blur :placeholder="draft.upstreams.length ? undefined : '192.168.1.10:8080'" class="w-full" />
       </UFormField>
+      <!-- One upstream has nothing to choose between. A switch that is on stays visible, so it can be turned off. -->
       <USwitch
+        v-if="draft.upstreams.length > 1 || draft.sticky"
         v-model="draft.sticky"
         label="Sticky upstream"
         description="Send each client to the same upstream while it is up. Use it for apps that keep a session on one node, such as the Proxmox console."

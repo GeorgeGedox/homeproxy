@@ -69,6 +69,12 @@ test("Sticky upstream saves on and off on an HTTP site and on a TCP port", async
     for (const on of [true, false]) {
       await page.goto("/routes");
       await page.getByRole("region", { name: region, exact: true }).getByRole("link", { name: row }).click();
+      if (on) {
+        // With one upstream there is nothing to stick to, so the switch shows only with a second one.
+        await expect(sticky).toBeHidden();
+        await page.getByLabel("Upstreams").fill(`${stack.upstream}:81`);
+        await page.getByLabel("Upstreams").press("Enter");
+      }
       await expect(sticky).toBeChecked({ checked: !on });
       await sticky.click();
       await page.getByRole("button", { name: "Stage change" }).click();
