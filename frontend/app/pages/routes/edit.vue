@@ -4,6 +4,8 @@ const text = (key: string) => (typeof query[key] === "string" ? query[key] : und
 const host = text("host");
 const editor = useRouteEditor({ name: text("name"), copy: text("copy"), host, path: text("path") });
 const guard = useUnsavedGuard(editor.dirty);
+const { data: status } = useStatus();
+const unmarked = computed(() => status.value?.cloudflare_unmarked.includes(text("name") ?? "") ?? false);
 
 const label = computed(() => (editor.original.value ? routeTarget(editor.original.value) : ""));
 const title = computed(() => {
@@ -26,6 +28,7 @@ async function submit(): Promise<void> {
       </UDashboardNavbar>
     </template>
     <template #body>
+      <UAlert v-if="unmarked" class="mb-4 max-w-2xl" color="warning" variant="subtle" icon="lucide:triangle-alert" :description="`This route ${cloudflareUnmarkedAdvice}`" />
       <div v-if="editor.loadError.value" class="max-w-2xl space-y-4">
         <UAlert color="error" variant="subtle" :description="editor.loadError.value" />
         <UButton to="/routes" color="neutral" variant="subtle" label="Back to Routes" />

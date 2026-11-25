@@ -13,11 +13,13 @@ interface MockState {
   usersFail: boolean;
   /** Refuse to list the basic auth users. */
   usersLoadFail: boolean;
+  /** The routes that `/status` says Cloudflare proxies by hand. */
+  cloudflareUnmarked: string[];
 }
 
 /** A stateful mock of the session, routes and basic auth endpoints. */
 async function mockApi(page: Page): Promise<MockState> {
-  const state: MockState = { routes: [], posted: [], put: [], usersBody: undefined, usersFail: false, usersLoadFail: false };
+  const state: MockState = { routes: [], posted: [], put: [], usersBody: undefined, usersFail: false, usersLoadFail: false, cloudflareUnmarked: [] };
   const refused = (message: string): [number, unknown] => [500, { error: { code: "internal", message } }];
   const handlers: Record<string, (name: string, body: Route) => Reply> = {
     "GET /auth/me": () => [200, { authenticated: true }],
@@ -26,6 +28,7 @@ async function mockApi(page: Page): Promise<MockState> {
     "GET /routes": () => [200, state.routes],
     "GET /geoip": () => [200, { provider: "dbip-lite", block_countries: ["KP"], data: { countries: ["CN", "DE", "KP", "RU"] }, attribution: {} }],
     "GET /routes/warnings": () => [200, []],
+    "GET /status": () => [200, { cloudflare_unmarked: state.cloudflareUnmarked }],
     "POST /routes": (_, body) => {
       state.posted.push(body);
       const route = { ...body, name: body.name ?? `new-${state.posted.length}` };
@@ -107,6 +110,15 @@ test("a route whose users cannot be read does not open, so a save cannot delete 
   await openWiki(page);
   await expect(page.getByText("The users file could not be read.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Stage change" })).toHaveCount(0);
+});
+
+test("a route that Cloudflare proxies by hand shows a warning in its editor", async ({ page }) => {
+  const state = await mockApi(page);
+  state.routes = [wiki];
+  state.cloudflareUnmarked = ["wiki"];
+  await page.goto("/routes");
+  await openWiki(page);
+  await expect(page.getByText("This route gets requests through Cloudflare's proxy, so the logs, GeoIP and CrowdSec see Cloudflare's address. Turn on its Cloudflare DNS record, proxied through Cloudflare.")).toBeVisible();
 });
 
 test("block countries by picking them, and switch the blocking off without losing the list", async ({ page }) => {

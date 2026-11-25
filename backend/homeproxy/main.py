@@ -39,9 +39,11 @@ from homeproxy.auth import install_auth
 from homeproxy.auth.runtime import data_root, get_runtime
 from homeproxy.certs.service import CertificateService
 from homeproxy.crowdsec.health import AppsecReading
+from homeproxy.generator.cloudflare_ranges import CLOUDFLARE_LIST
 from homeproxy.geoip.lookup import CountryLookup
 from homeproxy.haproxy.client import HAProxyClient
 from homeproxy.haproxy.pipeline import Pipeline
+from homeproxy.haproxy.release_links import GENERATED
 from homeproxy.haproxy.version_check import releases_url
 from homeproxy.jobs import JobRunner
 from homeproxy.jobs import geoip as geoip_jobs
@@ -54,6 +56,7 @@ from homeproxy.jobs.state_alerts import StateAlerts
 from homeproxy.jobs.update_check import UpdateCheck, update_url
 from homeproxy.jobs.version_check import VersionCheck
 from homeproxy.logs import LogCollector
+from homeproxy.logs.cloudflare_edge import CloudflareEdge
 from homeproxy.logs.files import LogFiles
 from homeproxy.store import Store, StoreError
 from homeproxy.ui import mount_ui
@@ -115,6 +118,8 @@ async def lifespan(app: FastAPI) -> AsyncIterator[None]:
         other=files.haproxy,
     )
     collector.subscribe(files.access)
+    app.state.cloudflare_edge = CloudflareEdge(root / GENERATED / CLOUDFLARE_LIST)
+    collector.subscribe(app.state.cloudflare_edge)
     app.state.collector = collector
     async with collect_metrics(collector, root / "state" / "metrics.db") as metrics:
         app.state.metrics = metrics

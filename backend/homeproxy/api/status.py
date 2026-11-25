@@ -24,6 +24,7 @@ from homeproxy.haproxy.stats import HAProxyInfo, ProxyType, StatRow
 from homeproxy.haproxy.version_check import VersionStatus
 from homeproxy.jobs.update_check import UpdateCheck, UpdateStatus
 from homeproxy.jobs.version_check import VersionCheck
+from homeproxy.logs.cloudflare_edge import CloudflareEdge
 from homeproxy.store import AuditLog, StoreError
 
 logger = logging.getLogger(__name__)
@@ -89,6 +90,11 @@ class Status(BaseModel):
         description="Seconds since the DNS server's process started. None when it is not "
         "listening or its start time is unknown"
     )
+    cloudflare_unmarked: list[str] = Field(
+        description="The routes in HAProxy that got a request from a Cloudflare edge address in "
+        "the last 24 hours and are not marked proxied, so their logs hold the edge address. "
+        "Sorted. Empty after a restart of the dashboard, and while HAProxy does not answer"
+    )
     last_apply: LastApply | None
 
 
@@ -145,6 +151,7 @@ def status(request: Request, services: ServicesDep) -> Status:
     check: VersionCheck = request.app.state.version_check
     update: UpdateCheck = request.app.state.update_check
     reading: AppsecReading = request.app.state.appsec
+    edge: CloudflareEdge = request.app.state.cloudflare_edge
     info: HAProxyInfo | None = None
     error: str | None = None
     routes: list[RouteHealth] = []
@@ -173,5 +180,6 @@ def status(request: Request, services: ServicesDep) -> Status:
         appsec=appsec,
         dns_listening=listening,
         dns_uptime_seconds=dns_uptime,
+        cloudflare_unmarked=edge.unmarked(store.root / GENERATED, (route.name for route in routes)),
         last_apply=_last_apply(store.audit),
     )
