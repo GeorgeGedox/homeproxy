@@ -10,7 +10,7 @@ name: release-pr
 # `release` environment, which only main can use; scheduled runs always run on main.
 on:
   schedule:
-    - cron: "17 4 * * *"
+    - cron: "30 6 * * *"
   workflow_dispatch:
     inputs:
       kind:

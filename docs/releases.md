@@ -87,7 +87,7 @@ The type of each commit on `dev` sets the next release:
 
 A HAProxy patch and a security fix come from Renovate as `fix` commits. Other dependency updates are `chore` commits.
 
-Each day at 04:17 UTC, the `release-pr` workflow opens or updates the pull request from `dev` into `main`. The maintainer can also start it from the Actions tab and select a patch or minor release. This ships updates that came as `chore` commits, for example a Debian security fix. When the pull request merges, the `release` workflow does these steps:
+Each day at 06:30 UTC, the `release-pr` workflow opens or updates the pull request from `dev` into `main`. The maintainer can also start it from the Actions tab and select a patch or minor release. This ships updates that came as `chore` commits, for example a Debian security fix. When the pull request merges, the `release` workflow does these steps:
 
 1. It builds the image for each architecture on a machine of that architecture.
 2. It tests each image with the smoke test, the integration tests and the end-to-end tests.
