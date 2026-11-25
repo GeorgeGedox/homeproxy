@@ -95,7 +95,7 @@ export function useOverview() {
   });
   const requests = computed(() => (metrics.value?.total ?? []).reduce((sum, point) => sum + point.requests, 0));
   const classes = computed(() => statusClasses(metrics.value?.byStatus ?? []));
-  const countries = computed(() => totalsByGroup(metrics.value?.byCountry ?? []).filter((row): row is { group: string; requests: number } => row.group !== null).slice(0, 5));
+  const countries = computed(() => totalsByGroup(metrics.value?.byCountry ?? []).filter((row): row is { group: string; requests: number } => row.group !== null && row.group !== "LAN").slice(0, 5));
 
   return { status, data, fresh, health, attention, traffic, requests, classes, countries, bans };
 }

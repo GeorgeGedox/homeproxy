@@ -21,7 +21,7 @@ const isPicked = (row: RankedRow) => props.picked?.group === row.group && props.
           @click="$emit('pick', row)"
         >
           <StatusLed v-if="row.tone" :tone="row.tone" />
-          <span v-if="row.group === 'country' && row.value" :class="['fi shrink-0 rounded-[2px]', `fi-${row.value.toLowerCase()}`]" aria-hidden="true" />
+          <span v-if="row.group === 'country' && row.value && row.value !== 'LAN'" :class="['fi shrink-0 rounded-[2px]', `fi-${row.value.toLowerCase()}`]" aria-hidden="true" />
           <span class="min-w-0 flex-1">
             <span class="block truncate" :class="row.group !== 'country' && row.value !== null && 'font-mono'">{{ row.label }}</span>
             <span class="mt-1 block h-1 rounded-full bg-elevated">

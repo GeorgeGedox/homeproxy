@@ -10,6 +10,7 @@ from fastapi.testclient import TestClient
 
 from homeproxy.api.metrics import collect_metrics, open_metrics
 from homeproxy.logs import LogCollector
+from homeproxy.logs.metrics import MetricsStore
 
 
 def datagram(at: datetime, route: str) -> bytes:
@@ -43,6 +44,26 @@ def test_logged_requests_reach_the_series_after_a_restart(data_dir: Path, api: T
 
     assert series(range="1h", group="route") == [("app", 2)]
     assert sum(requests for _, requests in series(range="24h")) == 3
+
+
+def test_a_lan_client_counts_as_lan_until_lan_cidrs_changes(
+    data_dir: Path, api: TestClient
+) -> None:
+    """The collector reads `network.lan_cidrs` for each line, so an edit applies to the next one."""
+    collector: LogCollector = api.app.state.collector  # type: ignore[attr-defined]
+    store: MetricsStore = api.app.state.metrics  # type: ignore[attr-defined]
+    collector.subscribe(store.record)
+    now = datetime.now(UTC)
+
+    collector.receive(datagram(now, "app"))
+    config = data_dir / "config" / "config.yaml"
+    config.write_text(config.read_text().replace("192.168.1.0/24", "10.0.0.0/8"))
+    collector.receive(datagram(now, "app"))
+    store.flush()
+
+    params = {"range": "1h", "group": "country"}
+    points = api.get("/api/v1/metrics/series", params=params).json()
+    assert sorted((p["group"], p["requests"]) for p in points) == [("DE", 1), ("LAN", 1)]
 
 
 def test_a_corrupt_metrics_file_is_replaced(

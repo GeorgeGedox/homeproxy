@@ -155,7 +155,30 @@ def test_filter_sends_only_matching_lines(
     asyncio.run(main())
 
 
-@pytest.mark.parametrize("query", ["status=99", "client=not-an-ip", "client=192.168.1.10/24"])
+@pytest.mark.parametrize(
+    ("query", "matching", "other"),
+    [
+        pytest.param("network=lan", "192.168.1.10", "203.0.113.9", id="lan-hides-the-internet"),
+        pytest.param("network=internet", "203.0.113.9", "192.168.1.10", id="internet-hides-lan"),
+    ],
+)
+def test_network_filter_tells_lan_from_internet_clients(
+    tmp_path: Path, query: str, matching: str, other: str
+) -> None:
+    async def main() -> None:
+        collector = LogCollector(tmp_path / "syslog.sock", lan=lambda ip: ip.startswith("192.168."))
+        async with sse_client(collector, query) as sent:
+            await sent.get()
+            collector.receive(line(path="/other", client=other))
+            collector.receive(line(path="/match", client=matching))
+            assert (await next_event(sent))["request"] == "GET /match HTTP/1.1"
+
+    asyncio.run(main())
+
+
+@pytest.mark.parametrize(
+    "query", ["status=99", "client=not-an-ip", "client=192.168.1.10/24", "network=moon"]
+)
 def test_bad_filter_is_refused(tmp_path: Path, query: str) -> None:
     async def main() -> None:
         collector = LogCollector(tmp_path / "syslog.sock")

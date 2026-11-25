@@ -192,3 +192,46 @@ def test_every_line_gets_its_clients_country(
     collector.receive(line)
 
     assert [entry.country for entry in [*received, *collector.tail()]] == [country, country]
+
+
+@pytest.mark.parametrize(
+    ("client", "logged", "country"),
+    [
+        pytest.param(b"192.168.1.10", b"", "LAN", id="lan-client-has-no-country"),
+        pytest.param(b"192.168.1.10", b"DE", "LAN", id="lan-wins-over-the-logged-country"),
+        pytest.param(b"203.0.113.9", b"DE", "DE", id="internet-client-keeps-its-country"),
+        pytest.param(b"203.0.113.9", b"", None, id="internet-client-without-country"),
+    ],
+)
+def test_a_lan_client_counts_as_lan_not_as_a_country(
+    tmp_path: Path, client: bytes, logged: bytes, country: str | None
+) -> None:
+    collector = LogCollector(tmp_path / "syslog.sock", lan=lambda ip: ip.startswith("192.168."))
+
+    line = LINE.replace(b"172.17.0.1", client).replace(b'"app" "" ""', b'"app" "%s" ""' % logged)
+    entry = collector.receive(line)
+
+    assert entry is not None
+    assert entry.country == country
+
+
+def test_a_failing_lan_check_keeps_the_line_and_logs_once(
+    tmp_path: Path, caplog: pytest.LogCaptureFixture
+) -> None:
+    broken = True
+
+    def lan(address: str) -> bool:
+        if broken:
+            raise OSError("config.yaml")
+        return True
+
+    collector = LogCollector(tmp_path / "syslog.sock", lan=lan)
+
+    with caplog.at_level("INFO", logger="homeproxy.logs.collector"):
+        first, second = collector.receive(LINE), collector.receive(LINE)
+        broken = False
+        recovered = collector.receive(LINE)
+
+    assert first is not None and second is not None and recovered is not None
+    assert [first.country, second.country, recovered.country] == [None, None, "LAN"]
+    assert [r.levelname for r in caplog.records] == ["WARNING", "INFO"]
