@@ -113,7 +113,7 @@ Read [docs/code-style.md](docs/code-style.md) before you write, change or review
 
 ## Writing
 
-Write all text for people in plain English, with no filler. Write `docs/` and step-by-step text in ASD-STE100 Simplified Technical English. Quote UI labels exactly. A change to a UI label also changes its tests and the docs that quote it.
+Write all text for people in plain English, with no filler. Write `docs/` and step-by-step text in ASD-STE100 Simplified Technical English. In `docs/`, tell how to do a task in the dashboard first, and give the `config.yaml` key after it for hand edits. Quote UI labels exactly. A change to a UI label also changes its tests and the docs that quote it.
 
 ## Workflow
 
@@ -125,7 +125,7 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior or the image changes, and `test-e2e` when the UI changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`. The type decides the next release: `fix` makes a patch release that publishes by itself, `feat` makes a minor release that the maintainer merges, `!` or `BREAKING CHANGE` waits for a release by hand, and every other type releases nothing. Use `fix` only for a change a user would want shipped now.
 - Renovate owns the dependency pins and opens its PRs into `dev`. Do not bump a pin by hand unless the change needs a newer version. Renovate reads `renovate.json` from `main`, so an edit to it takes effect after the next release.
-- Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
+- Sign off every commit with `git commit -s`.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 
