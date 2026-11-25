@@ -175,6 +175,10 @@ class Snapshots:
         """Return every snapshot, newest first."""
         return [self.get(snapshot_id) for snapshot_id in self._ids()]
 
+    def count(self) -> int:
+        """Return how many snapshots there are, without reading them."""
+        return len(self._ids())
+
     def is_applied(self) -> bool:
         """Return whether `/data/config` equals the newest snapshot, ignoring the password hash."""
         ids = self._ids()

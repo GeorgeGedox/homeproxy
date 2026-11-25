@@ -132,14 +132,102 @@ CrowdSec bans clients that attack your public routes. The bouncer is in the imag
 
 ## Back up
 
-Copy `/data` to another machine, leaving out `generated`, `releases` and `state`. The next apply rebuilds them. Run this in the directory of `compose.yaml`:
+A backup holds `config/`, `secrets/`, `certs/`, `acme/`, `tls/`, `history/` and `audit/`. It leaves out `generated`, `releases`, `state/`, `pending/` and `migration-backups/`. The next apply rebuilds the first two, and the others are not needed on a new machine.
+
+The archive holds `secrets/secrets.yaml` and the certificate keys. It is not encrypted. Keep it private.
+
+### Download a backup
+
+1. Open **Settings**, then **Backup**.
+2. Click **Download backup**.
+
+The browser saves `homeproxy-backup-<version>-<time>.tar.gz`.
+
+### Back up every night
+
+A script on a different machine, for example a NAS, can download the backup with a backup token. The token works for the backup download only.
+
+1. Open **Settings**, then **Backup**.
+2. Click **Create token**.
+3. Copy the token. The dashboard shows it once.
+4. Click **Use the token**.
+5. Copy the command into your script.
+6. In the command, replace the three values in angle brackets:
+   - `<dashboard address>`: the address and port of the dashboard, for example `192.168.1.10:8443`.
+   - `<token>`: the backup token.
+   - `<key pin>`: the key pin that the page shows. To copy it, click the copy icon next to it.
+
+```sh
+curl --fail --insecure --pinnedpubkey "sha256//<key pin>" \
+  --header "Authorization: Bearer <token>" \
+  --remote-name --remote-header-name \
+  https://<dashboard address>/api/v1/backup
+```
+
+To make a new token, click **Replace token**. The old token stops working at once. To stop all downloads by script, click **Remove token**.
+
+The dashboard certificate is self-signed, so curl cannot check it with a certificate authority. `--insecure` stops that check. `--pinnedpubkey` makes curl compare the public key of the server with the key pin. If the two are different, curl stops before it sends the token, with exit code 90. Thus a device on your LAN that pretends to be the dashboard cannot get the token.
+
+Do not use `--insecure` without `--pinnedpubkey`. If your computer trusts the dashboard certificate, remove the two options.
+
+The key pin changes when the dashboard makes a new certificate, for example after you delete `/data/tls/dashboard.pem`. Then put the new key pin in the script. A restore brings back the certificate of the backup and its key pin.
+
+To encrypt the archive on the machine that stores it, use `age` or `gpg`. Each command asks for a passphrase:
+
+```sh
+age -p -o homeproxy-backup.tar.gz.age homeproxy-backup-*.tar.gz
+gpg -c homeproxy-backup-*.tar.gz
+```
+
+A script cannot answer a passphrase prompt. In a script, use `age -r <public key>` or `gpg -e -r <key id>`. Then the machine that stores the backups holds no key that opens them. Delete the plain archive after you encrypt it.
+
+### Restore a backup
+
+A restore replaces all of the data of the install with the data of the backup: config, routes, secrets, certificates, the ACME account, the dashboard certificate, history and the audit log. It removes the changes that wait to be applied. The dashboard address does not change.
+
+The password becomes the password of the backup, and all sessions end. If you do not know the password of the backup, [reset the password](dashboard-access.md#reset-the-password) after the restore.
+
+Before a restore, HomeProxy checks the file and shows what it holds. The file does not change the install until you confirm. HomeProxy refuses a file that is not a HomeProxy backup, and a backup from a newer version of HomeProxy. It updates a backup from an older version. Then **File version** shows "from an older HomeProxy, updated on restore".
+
+After the restore, the first apply runs. On a different machine, a value of the old machine can make it fail, for example `network.haproxy_lan_ip`. The failure shows on Overview. Correct the value on the Settings page.
+
+#### Restore on a new machine
+
+1. Do steps 1 to 4 of this page.
+2. Open the setup page, as in step 5.
+3. Enter the setup token from the container log.
+4. Click **Restore from backup**.
+5. Select the `.tar.gz` file. HomeProxy checks the file.
+6. Make sure that the summary shows the correct backup. If the page shows an error, correct the problem, then click **Check backup**.
+7. Click **Restore backup**.
+8. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+9. Click **Reload**.
+10. If the browser warns about the certificate again, accept the warning.
+11. Log in with the password from the backup.
+
+The setup page also accepts an archive made with the `tar` command below. It skips `pending/`, `migration-backups/` and other entries that a backup does not hold.
+
+#### Restore on an install that is set up
+
+1. Open **Settings**, then **Backup**.
+2. Under **Restore backup**, select the `.tar.gz` file. HomeProxy checks the file.
+3. Make sure that the summary shows the correct backup.
+4. Click **Restore backup**.
+5. To keep a copy of the current install, click **Download backup** in the dialog.
+6. Click **Restore backup** in the dialog.
+7. Wait a few seconds. The dashboard restarts with the certificate from the backup.
+8. Click **Reload**.
+9. If the browser warns about the certificate, accept the warning.
+10. Log in with the password from the backup.
+
+### Back up by hand
+
+Copy `/data` to another machine, leaving out `generated`, `releases` and `state`. Run this in the directory of `compose.yaml`:
 
 ```sh
 docker compose exec -T homeproxy tar -C /data --exclude=./generated --exclude=./releases \
   --exclude=./state -czf - . > homeproxy-data.tar.gz
 ```
-
-The archive holds `secrets/secrets.yaml` and the certificate keys. Keep it private.
 
 To restore on a new machine, do steps 1 to 3, fill the empty data directory before the first start, then start:
 

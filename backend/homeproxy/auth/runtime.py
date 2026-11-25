@@ -31,6 +31,7 @@ from homeproxy.auth.ratelimit import LoginThrottle
 from homeproxy.auth.sessions import Session, SessionSigner
 from homeproxy.auth.setup_token import SetupToken, announce
 from homeproxy.auth.sources import SourcePolicy, lan_policy, private_policy
+from homeproxy.backup.token import token_matches
 from homeproxy.store.errors import StoreError
 from homeproxy.store.files import Store
 
@@ -189,6 +190,27 @@ class AuthRuntime:
             return None
         return signer.verify(cookie, current.password_hash, current.session_ttl)
 
+    def backup_token_valid(self, peer: str, token: str) -> bool:
+        """Whether `token` is the backup token. A wrong one counts as a failed login from `peer`.
+
+        Raises an `AuthError` 429 while the client is throttled. Blocks on a file read, so call it
+        from a worker thread.
+        """
+        wait = self.throttle.retry_after(peer)
+        if wait is not None:
+            raise errors.throttled(wait)
+        try:
+            valid = token_matches(self.store.load_secrets(), token)
+        except (OSError, StoreError) as error:
+            logger.error("cannot load %s: %s", self.store.secrets_path, error)
+            raise errors.unavailable(
+                "secrets.yaml cannot be read. Check the container log."
+            ) from None
+        if not valid:
+            self.throttle.record_failure(peer)
+            logger.warning("wrong backup token from %s", peer)
+        return valid
+
     def logout(self, session: Session) -> None:
         """End a session before its cookie expires."""
         try:
@@ -205,13 +227,14 @@ class AuthRuntime:
         return not self.configured() and not token_used
 
     @contextmanager
-    def setup_claim(self, peer: str, token: str) -> Iterator[None]:
+    def setup_claim(self, peer: str, token: str, *, consume: bool = True) -> Iterator[None]:
         """Hold the setup token while the caller writes the first config.
 
         Checks, in order: setup is still open (409), the client is in a private range (403), the
         client is not throttled (429) and the token matches and is free (403). A wrong token counts
         as a failed login. If the block raises, the token is released for another try. If it
-        returns, the token is used up. The server keeps running on the address it is on.
+        returns, the token is used up, unless `consume` is false: a check then releases it and
+        leaves the throttle as it is. The server keeps running on the address it is on.
 
         Usage in the setup endpoint: `with runtime.setup_claim(ip, body.token): ...`.
         Write the files under `Store.lock()` inside the block.
@@ -236,6 +259,9 @@ class AuthRuntime:
         except BaseException:
             self.setup_token.release()
             raise
+        if not consume:
+            self.setup_token.release()
+            return
         self.setup_token.finish()
         self.throttle.reset(peer)
         logger.info("setup finished from %s", peer)

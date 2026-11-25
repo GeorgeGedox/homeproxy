@@ -18,7 +18,7 @@ from starlette.types import ASGIApp, Receive, Scope, Send
 from homeproxy.auth import errors
 from homeproxy.auth.listen import WINDOW_SCOPE_KEY
 from homeproxy.auth.runtime import AuthRuntime
-from homeproxy.auth.sessions import COOKIE_NAME, Session
+from homeproxy.auth.sessions import COOKIE_NAME
 
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
@@ -27,6 +27,8 @@ PUBLIC_API_PATHS = frozenset(
         "/api/v1/healthz",
         "/api/v1/setup/status",
         "/api/v1/setup",
+        "/api/v1/setup/restore",
+        "/api/v1/setup/restore/check",
         "/api/v1/auth/login",
     }
 )
@@ -34,6 +36,11 @@ PUBLIC_API_PATHS = frozenset(
 
 SESSION_STATE_KEY = "auth_session"
 """Key in `request.state` that holds the `Session` of an authenticated request."""
+
+BACKUP_PATH = "/api/v1/backup"
+BACKUP_TOKEN_STATE_KEY = "backup_token_valid"  # noqa: S105 - a state key, not a secret
+"""Key in `request.state` that is True for a request that sent the backup token. The token works
+for `GET BACKUP_PATH` only and never makes a session."""
 
 
 def is_api_path(path: str) -> bool:
@@ -49,6 +56,12 @@ def origin_allowed(scope: Scope, headers: Headers) -> bool:
         return False
     expected = f"{scope.get('scheme', 'https')}://{host}"
     return origin.lower() == expected.lower()
+
+
+def bearer_token(headers: Headers) -> str | None:
+    """Return the token of an `Authorization: Bearer` header, if there is one."""
+    scheme, _, token = headers.get("authorization", "").partition(" ")
+    return token.strip() or None if scheme.lower() == "bearer" else None
 
 
 def session_cookie(headers: Headers) -> str | None:
@@ -80,16 +93,32 @@ class AuthMiddleware:
             return
         path = scope["path"]
         if is_api_path(path) and path not in PUBLIC_API_PATHS:
-            cookie = session_cookie(headers)
-            session: Session | None = None
-            if cookie:
-                runtime = await run_in_threadpool(self.runtime)
-                session = await run_in_threadpool(runtime.authenticate, cookie)
-            if session is None:
-                await errors.error_response(errors.unauthorized())(scope, receive, send)
+            refusal = await self._gate(scope, headers, path)
+            if refusal is not None:
+                await errors.error_response(refusal)(scope, receive, send)
                 return
-            scope.setdefault("state", {})[SESSION_STATE_KEY] = session
+        await self.app(scope, receive, send)
+
+    async def _gate(self, scope: Scope, headers: Headers, path: str) -> errors.AuthError | None:
+        """Check the session, or on the backup download the backup token. Return the refusal."""
+        runtime = await run_in_threadpool(self.runtime)
+        cookie = session_cookie(headers)
+        session = await run_in_threadpool(runtime.authenticate, cookie) if cookie else None
+        state = scope.setdefault("state", {})
+        if session is not None:
+            state[SESSION_STATE_KEY] = session
             if WINDOW_SCOPE_KEY in scope:
                 # A session reached a new listen address on trial, which confirms it.
                 await runtime.listen_change.confirm(scope[WINDOW_SCOPE_KEY])
-        await self.app(scope, receive, send)
+            return None
+        token = bearer_token(headers)
+        if path != BACKUP_PATH or scope["method"] != "GET" or token is None:
+            return errors.unauthorized()
+        client = scope.get("client")
+        peer = str(client[0]) if client else ""
+        try:
+            valid = await run_in_threadpool(runtime.backup_token_valid, peer, token)
+        except errors.AuthError as error:
+            return error
+        state[BACKUP_TOKEN_STATE_KEY] = valid
+        return None if valid else errors.unauthorized()
