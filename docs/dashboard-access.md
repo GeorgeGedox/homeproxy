@@ -63,11 +63,20 @@ The Settings page edits the network, the internal DNS server, certificates (Let'
 
 An address or range in `network.lan_cidrs` that reaches outside the private ranges (RFC 1918, loopback, link-local and IPv6 unique local), such as `0.0.0.0/1`, is saved with a warning that names it, and every apply repeats the warning. Its clients count as LAN, so LAN-only routes and the dashboard answer them. A catch-all range (`0.0.0.0/0`, `::/0`) is refused.
 
-The dashboard address, the session length and the password are on their own page, **Dashboard and password**, the last entry in the Settings menu. The address and session length are saved to `config.yaml` at once, without an apply. While a change to `config.yaml` is staged, the page tells you this and its Save waits. An apply of the staged copy of `config.yaml` would undo the change. A staged route does not stop the Save.
+The page **Backup** is the last entry in the Settings menu. It is also saved at once. It downloads a backup, makes the backup token and restores a backup. See [Back up](install.md#back-up).
+
+The dashboard address, the session length and the password are on their own page, **Dashboard and password**, the entry above **Backup** in the Settings menu. The address and session length are saved to `config.yaml` at once, without an apply. While a change to `config.yaml` is staged, the page tells you this and its Save waits. An apply of the staged copy of `config.yaml` would undo the change. A staged route does not stop the Save.
 
 The CrowdSec, captcha and MaxMind keys are write-only and saved at once: the page shows only whether each one is set. A set key stays visible, with **Clear**, even while its feature is off. Saving a key sets or replaces it in `secrets.yaml`, and saving it empty clears it. No key value is ever shown, logged or written to the audit log. See [CrowdSec](crowdsec.md) and [GeoIP](geoip.md).
 
 ## Change the dashboard address
+
+1. Open **Settings**, then **Dashboard and password**.
+2. In **Dashboard address**, enter the new address as `ip:port`, for example `192.168.1.10:8443`.
+3. Click **Save**.
+4. Click **Open the new address** and log in there within 60 seconds.
+
+In `config.yaml`, the address is `dashboard.listen`. A hand edit needs a restart of the dashboard (see [After setup](#after-setup)).
 
 A wrong address could lock you out, so a new `dashboard.listen` is tried before it is saved:
 
@@ -80,7 +89,7 @@ Because both addresses listen during the 60 seconds, a move between `0.0.0.0` an
 
 A few seconds after the change is saved, the old address stops answering, so you can move back to it later. The same certificate serves both, so its fingerprint does not change.
 
-Restoring a snapshot from History keeps the current password, address and session length, so a restore cannot lock you out.
+Restoring a snapshot from History keeps the current password, address and session length, so a restore cannot lock you out. A restore of a full backup is different: the password becomes the password of the backup. See [Restore a backup](install.md#restore-a-backup).
 
 Moving between one IP and every address (`0.0.0.0`) on the same port is refused, because both cannot listen at once during the 60 seconds. Move to another port first, or edit `config.yaml` and restart the dashboard.
 

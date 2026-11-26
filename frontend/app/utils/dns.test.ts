@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dnsNames } from "~/utils/dns";
+import { dnsNames, forwardingLines } from "~/utils/dns";
 
 const http = (name: string, hosts: string[], extra: Record<string, unknown> = {}) =>
   ({ name, type: "http", hosts, enabled: true, dns: { target: "haproxy" }, ...extra }) as unknown as Route;
@@ -20,5 +20,14 @@ describe("dnsNames", () => {
       { name: "old.example.com", target: "192.168.1.50", state: "removing" },
       { name: "printer.example.com", target: "192.168.1.40", state: "staged" },
     ]);
+  });
+});
+
+describe("forwardingLines", () => {
+  it("writes one line for each zone in the AdGuard Home and dnsmasq formats", () => {
+    expect(forwardingLines(["example.com", "example.org"], "192.168.1.10:5335")).toEqual({
+      adguard: "[/example.com/]192.168.1.10:5335\n[/example.org/]192.168.1.10:5335",
+      dnsmasq: "server=/example.com/192.168.1.10#5335\nserver=/example.org/192.168.1.10#5335",
+    });
   });
 });

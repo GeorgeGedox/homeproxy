@@ -7,9 +7,13 @@ defineProps<{
   forwardTo: string[];
   forwardStaged: string[] | null;
   zones: string[];
-  adguardLines: string;
+  lines: { adguard: string; dnsmasq: string };
 }>();
-defineEmits<{ copy: [] }>();
+const formats = [
+  { key: "adguard", label: "AdGuard Home" },
+  { key: "dnsmasq", label: "dnsmasq or Pi-hole" },
+] as const;
+defineEmits<{ copy: ["adguard" | "dnsmasq"] }>();
 </script>
 
 <template>
@@ -35,10 +39,13 @@ defineEmits<{ copy: [] }>();
         Staged: {{ forwardStaged.length ? `forward to ${forwardStaged.join(", ")}` : "forward to no resolver" }}
       </p>
       <div v-if="zones.length" class="space-y-2">
-        <p class="text-muted">In AdGuard Home, add these upstream DNS servers, so your zones go to HomeProxy and everything else stays as it is:</p>
-        <div class="flex flex-col items-start gap-2 rounded-md border border-default bg-muted px-3 py-2 sm:flex-row">
-          <pre class="w-full min-w-0 flex-1 font-mono text-xs break-all whitespace-pre-wrap text-highlighted">{{ adguardLines }}</pre>
-          <UButton icon="lucide:copy" label="Copy" color="neutral" variant="ghost" size="xs" @click="$emit('copy')" />
+        <p class="text-muted">In your LAN resolver, forward these zones to HomeProxy, so everything else stays as it is. Use the format that your resolver reads:</p>
+        <div v-for="format in formats" :key="format.key" class="space-y-1">
+          <p class="text-xs text-muted">{{ format.label }}</p>
+          <div class="flex flex-col items-start gap-2 rounded-md border border-default bg-muted px-3 py-2 sm:flex-row">
+            <pre class="w-full min-w-0 flex-1 font-mono text-xs break-all whitespace-pre-wrap text-highlighted">{{ lines[format.key] }}</pre>
+            <UButton icon="lucide:copy" :label="`Copy for ${format.label}`" color="neutral" variant="ghost" size="xs" @click="$emit('copy', format.key)" />
+          </div>
         </div>
       </div>
     </div>

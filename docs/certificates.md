@@ -2,6 +2,27 @@
 
 HomeProxy gets its certificates from Let's Encrypt with a DNS challenge through the domain's DNS provider. HAProxy never has to be reachable from the internet for this, and a wildcard certificate covers every host under a zone.
 
+## In the dashboard
+
+Each domain has a certificate setting. To set it:
+
+1. Open **Domains**.
+2. Click **Add domain**, or open a domain to edit it.
+3. In **Domain**, enter the zone, for example `example.com`.
+4. Select how the domain gets HTTPS:
+   - **Let's Encrypt via Cloudflare**: a trusted certificate. Cloudflare DNS records and DDNS also become available.
+   - **Let's Encrypt via another DNS provider**: a trusted certificate. Select the provider in **DNS provider**.
+   - **Self-signed**: HTTPS that browsers warn about. It needs no account.
+   - **No certificate**: plain HTTP only.
+5. For a wildcard certificate, turn on **One wildcard certificate for \*.example.com**. If it is off, each host gets its own certificate.
+6. Under the credentials of the provider, select stored credentials, or select **New credentials** and enter them.
+7. Click **Stage change**.
+8. Click **Apply** in the bar at the bottom.
+
+HomeProxy then gets the certificates. The job list shows each issuance and its result.
+
+In `config.yaml`, these settings are the domain keys `dns_provider`, `credentials` and `wildcard_cert`. The credentials are in `secrets.yaml`. The sections below give the details.
+
 ## What gets a certificate
 
 | Config | Certificate |

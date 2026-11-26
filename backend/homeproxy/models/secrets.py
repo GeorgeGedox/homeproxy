@@ -17,9 +17,9 @@ from homeproxy.models.domain import DnsProvider
 from homeproxy.models.fields import (
     BasicAuthHash,
     BasicAuthUser,
-    FileVersion,
     Name,
     RequiredSecretToken,
+    SecretsVersion,
     SecretToken,
     SessionKey,
     SigningKey,
@@ -172,13 +172,36 @@ class SecretsNotifications(StrictModel):
         return [*(target.url for target in self.targets.values()), self.heartbeat_url]
 
 
+def _backup_token_hash(value: SecretStr) -> SecretStr:
+    if re.fullmatch(r"[0-9a-f]{64}", value.get_secret_value()) is None:
+        raise ValueError("must be 64 lowercase hex digits")
+    return value
+
+
+BackupTokenHash = Annotated[SecretStr, AfterValidator(_backup_token_hash)]
+"""The SHA-256 of the backup token, as 64 hex digits."""
+
+BackupTokenTime = Annotated[
+    str, StringConstraints(pattern=r"^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")
+]
+"""When the backup token was made, in UTC, as `2026-11-25T10:00:00Z`."""
+
+
 class Secrets(StrictModel):
     """The whole of `secrets.yaml`."""
 
-    version: FileVersion
+    version: SecretsVersion
     session_key: SessionKey
     dns_credentials: dict[Name, DnsCredential] = Field(default_factory=dict)
     basic_auth: dict[Name, dict[BasicAuthUser, BasicAuthHash]] = Field(default_factory=dict)
     crowdsec: SecretsCrowdsec = Field(default_factory=SecretsCrowdsec)
     geoip: SecretsGeoip = Field(default_factory=SecretsGeoip)
     notifications: SecretsNotifications = Field(default_factory=SecretsNotifications)
+    backup_token_hash: BackupTokenHash | None = None
+    backup_token_created_at: BackupTokenTime | None = None
+
+    @model_validator(mode="after")
+    def _token_has_time(self) -> Self:
+        if (self.backup_token_hash is None) != (self.backup_token_created_at is None):
+            raise ValueError("backup_token_hash and backup_token_created_at go together")
+        return self

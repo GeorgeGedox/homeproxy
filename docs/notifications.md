@@ -4,6 +4,19 @@ HomeProxy can send a message to Discord or to any webhook receiver when somethin
 
 ## Targets
 
+To add a target:
+
+1. Open **Settings** and select **Notifications**.
+2. Click **Add target**.
+3. Enter a **Target name**. Select a **Target type**: `discord` or `webhook`.
+4. In **Events**, select the events that the target gets. A new target gets every event. See [Events](#events).
+5. Click **Stage changes**, then click **Apply**.
+6. Set the URL of the target. See [URLs are secrets](#urls-are-secrets).
+
+To remove a target, click **Remove target**, then stage and apply the change.
+
+In `config.yaml` and `secrets.yaml`:
+
 ```yaml
 # config.yaml
 notifications:
@@ -34,11 +47,15 @@ notifications:
   }
   ```
 
-The targets are part of the settings: change them on the Settings page or with `PUT /api/v1/settings` (the `notifications` section). Like every setting, a change is pending until you apply it.
+The targets are part of the settings. Change them in the dashboard, or with `PUT /api/v1/settings` (the `notifications` section). Like every setting, a change is pending until you apply it.
 
 ## URLs are secrets
 
-Anyone with a webhook URL can post to your channel, so a URL is written once and never shown again.
+Anyone with a webhook URL can post to your channel. HomeProxy shows a URL never, so you write it once.
+
+In the dashboard, the URL field of a target shows after you stage the target. Click **Add** (or **Replace**), enter the URL and click **Save URL**. A URL is saved at once, with no apply. Click **Clear** to remove it. If you rename or remove a target, its URL stays. The dashboard then shows "A URL is left over for" the old name. Click **Clear** in that message to remove the URL.
+
+Through the API:
 
 - `PUT /api/v1/notifications/urls` with `{"targets": {"discord-main": "https://..."}}` saves a URL at once, with no apply. Send `""` to clear one. A URL you leave out stays as it is.
 - `GET /api/v1/notifications/urls` says only which targets have a URL. It also lists under `unused` the names that have a URL but no target, for example after you rename or remove a target, so you can clear them. A renamed or removed target counts as unused only after the apply, because until then the live settings still send to it, and a discarded change brings it back.
@@ -49,11 +66,22 @@ Anyone with a webhook URL can post to your channel, so a URL is written once and
 
 ## Test a target
 
-`POST /api/v1/notifications/targets/<name>/test` sends one sample message and returns the receiver's answer: `{"status": 204, "error": null}`, or `{"status": null, "error": "..."}` when no answer arrived. It uses the targets with your pending changes, so you can test a target before you apply it.
+Click **Test** next to the URL of a target. The dashboard shows the answer of the receiver. The test uses the targets with your pending changes, so you can test a target before you apply it.
+
+Through the API, `POST /api/v1/notifications/targets/<name>/test` sends one sample message and returns the receiver's answer: `{"status": 204, "error": null}`, or `{"status": null, "error": "..."}` when no answer arrived.
 
 ## Heartbeat
 
-HomeProxy cannot send a message when the host, the container or HAProxy is down. The heartbeat covers that: HomeProxy pings a URL at a fixed interval, and an outside service such as [healthchecks.io](https://healthchecks.io) or an Uptime Kuma push monitor alerts you when the pings stop.
+HomeProxy cannot send a message when the host, the container or HAProxy is down. The heartbeat covers that case. HomeProxy pings a URL at a fixed interval. An outside service alerts you when the pings stop. Use a service such as [healthchecks.io](https://healthchecks.io) or an Uptime Kuma push monitor.
+
+To turn it on, open **Settings**, select **Notifications** and do these steps:
+
+1. Click **Add** next to **Heartbeat URL**, enter the ping URL and click **Save URL**. Do this first: HomeProxy refuses to turn the heartbeat on without a URL.
+2. Turn on **Heartbeat**. Set **Heartbeat interval**, for example `1m`. The interval is at least `30s`.
+3. Click **Stage changes**, then click **Apply**.
+4. Click **Test** next to **Heartbeat URL** to send one ping. It works when the heartbeat is off too.
+
+In `config.yaml` and `secrets.yaml`:
 
 ```yaml
 # config.yaml
@@ -73,7 +101,7 @@ notifications:
 - Each ping waits at most 5 seconds and is not retried: the next interval is the retry. Only a 2xx answer counts. A redirect is not followed.
 - A ping that fails is logged once, and once more when pings work again. The URL is never logged or returned.
 - Set the outside service's period to the interval, with a grace time of at least one more interval.
-- The heartbeat settings are part of the settings (`PUT /api/v1/settings`, the `notifications` section) and take effect after an apply. The URL is saved at once, like the target URLs. Set the URL first: turning the heartbeat on while no URL is set is refused with "Set the heartbeat URL before you turn the heartbeat on."
+- The heartbeat settings are part of the settings (`PUT /api/v1/settings`, the `notifications` section) and take effect after an apply. The URL is saved at once, like the target URLs. HomeProxy refuses to turn the heartbeat on while no URL is set: "Set the heartbeat URL before you turn the heartbeat on."
 - `POST /api/v1/notifications/heartbeat/test` sends one ping, whether the heartbeat is on or not, and returns `{"status": 200, "error": null}`, or `{"status": null, "error": "..."}` when no answer arrived. It answers 409 when no URL is set.
 
 ## Events

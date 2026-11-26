@@ -66,7 +66,7 @@ These rules are settled. Do not change them without a new decision from the main
 - HomeProxy changes or deletes only the Cloudflare records that have its ownership marker. A hand-made record changes only after the admin adopts it.
 - Certificates use DNS-01 through lego, with any lego DNS provider except `exec`. Cloudflare records and DDNS need a Cloudflare zone.
 - The UI can edit every setting in `config.yaml` and `secrets.yaml`, and a new setting ships with its UI. The exceptions are `version`, `session_key`, `haproxy.track_branch` and `network.ipv6`.
-- The API never returns a secret. It returns only whether a secret is set.
+- The API never returns a secret. It returns only whether a secret is set. The two exceptions are the backup download and the backup token, which is shown once when it is made.
 - GeoIP blocks countries. HAProxy holds only the ranges of the countries that are blocked somewhere.
 - The UI has a dark theme only, and it makes no request outside its origin.
 - HomeProxy listens and answers DNS on IPv4 only. It tracks the newest HAProxy LTS.
@@ -94,7 +94,7 @@ Each command is one executable file in `mise-tasks/`.
 
 1. Never build a shell command from user input. Run `haproxy`, `lego` and `git` with fixed argument lists through `homeproxy.util.run`.
 2. User values reach generated HAProxy files only through strict validators and the escaping filter.
-3. Never log or return secrets. Anything from `secrets.yaml` is redacted in logs, API responses, errors and diffs. Generated files that hold hashes never appear in the UI.
+3. Never log or return secrets. Anything from `secrets.yaml` is redacted in logs, API responses, errors and diffs, except in the backup download (see Design rules). Generated files that hold hashes never appear in the UI.
 4. Never hard-code a user's domain, IP or port. Examples use `example.com` and `192.168.1.10`. Fixed values of the product, such as a default port or a public service URL, are named constants.
 5. Keep HAProxy independent: no code path may stop HAProxy because the dashboard failed.
 6. All file writes are atomic: temp file in the same directory, `fsync`, rename.
@@ -113,7 +113,7 @@ Read [docs/code-style.md](docs/code-style.md) before you write, change or review
 
 ## Writing
 
-Write all text for people in plain English, with no filler. Write `docs/` and step-by-step text in ASD-STE100 Simplified Technical English. Quote UI labels exactly. A change to a UI label also changes its tests and the docs that quote it.
+Write all text for people in plain English, with no filler. Write `docs/` and step-by-step text in ASD-STE100 Simplified Technical English. In `docs/`, tell how to do a task in the dashboard first, and give the `config.yaml` key after it for hand edits. Quote UI labels exactly. A change to a UI label also changes its tests and the docs that quote it.
 
 ## Workflow
 
@@ -125,7 +125,7 @@ Write all text for people in plain English, with no filler. Write `docs/` and st
 - Before a push, run `mise run check`. Also run `test-integration` when runtime behavior or the image changes, and `test-e2e` when the UI changes. User-visible behavior goes in `docs/`.
 - Commit messages and PR titles use Conventional Commits, for example `feat(generator): add LAN-only map`. The type decides the next release: `fix` makes a patch release that publishes by itself, `feat` makes a minor release that the maintainer merges, `!` or `BREAKING CHANGE` waits for a release by hand, and every other type releases nothing. Use `fix` only for a change a user would want shipped now.
 - Renovate owns the dependency pins and opens its PRs into `dev`. Do not bump a pin by hand unless the change needs a newer version. Renovate reads `renovate.json` from `main`, so an edit to it takes effect after the next release.
-- Sign off every commit with `git commit -s`. The DCO check fails a PR with a commit that has no `Signed-off-by` line.
+- Sign off every commit with `git commit -s`.
 - Never commit secrets, generated client output or local data.
 - If your session gives you commit attribution lines, end each commit message with them.
 

@@ -25,7 +25,6 @@ from homeproxy.models.fields import (
     CountryCode,
     DnsTarget,
     Duration,
-    FileVersion,
     HeaderName,
     HeaderValue,
     Hostname,
@@ -36,6 +35,7 @@ from homeproxy.models.fields import (
     Port,
     RedirectCode,
     RedirectUrl,
+    RouteVersion,
     unique,
 )
 
@@ -110,12 +110,13 @@ class HttpRoute(StrictModel):
     boundary wins. `strip_prefix` removes it from the path the upstream sees.
     """
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["http"]
     hosts: RouteHosts
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     health_check: HealthCheck | None = None
     tls_upstream: TlsUpstream = Field(default_factory=TlsUpstream)
     websocket: bool = False
@@ -133,12 +134,13 @@ class HttpRoute(StrictModel):
 class PassthroughRoute(StrictModel):
     """HAProxy reads the SNI name and forwards the encrypted stream to the upstream."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["passthrough"]
     hosts: RouteHosts
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     cloudflare: PassthroughRouteCloudflare = Field(default_factory=PassthroughRouteCloudflare)
     dns: RouteDns = Field(default_factory=RouteDns)
     geoip: RouteGeoip = Field(default_factory=RouteGeoip)
@@ -148,12 +150,13 @@ class PassthroughRoute(StrictModel):
 class TcpRoute(StrictModel):
     """HAProxy listens on its own port and forwards raw TCP to the upstream."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["tcp"]
     listen_port: Port
     exposure: Exposure
     upstreams: list[Upstream] = Field(min_length=1)
+    sticky: bool = False
     geoip: RouteGeoip = Field(default_factory=RouteGeoip)
     enabled: bool = True
 
@@ -181,7 +184,7 @@ class Redirect(StrictModel):
 class RedirectRoute(StrictModel):
     """HAProxy answers every request on the hosts with a redirect, and forwards nothing."""
 
-    version: FileVersion
+    version: RouteVersion
     name: Name
     type: Literal["redirect"]
     hosts: RouteHosts

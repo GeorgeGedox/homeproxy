@@ -38,6 +38,7 @@ def register_model_secrets(model: Config | Secrets) -> None:
                 model.crowdsec.captcha_secret_key,
                 model.crowdsec.captcha_signing_key,
                 model.geoip.maxmind_license_key,
+                *([] if model.backup_token_hash is None else [model.backup_token_hash]),
                 *model.notifications.urls(),
             )
         ),

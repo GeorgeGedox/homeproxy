@@ -40,7 +40,9 @@ from homeproxy.models.config import Dashboard
 from homeproxy.store.errors import StoreError, ValidationFailed
 from homeproxy.store.files import Store, _checked, validate_config
 from homeproxy.store.lock import HeldLock
+from homeproxy.store.migrate import MIGRATIONS, Migrations, migrate_bytes
 from homeproxy.store.pending import CONFIG_FILE, PendingChanges, config_files
+from homeproxy.store.pending_manifest import route_name
 from homeproxy.store.tree import dump_tree, load_tree, parse_tree
 from homeproxy.util.atomic import atomic_write, ensure_dir, fsync_dir
 from homeproxy.util.redact import REDACTED, redact
@@ -116,6 +118,14 @@ def _read_files(store: Store) -> dict[str, bytes]:
     return {path: file.read_bytes() for path, file in config_files(store).items()}
 
 
+def _migrated(path: str, data: bytes, migrations: Migrations) -> bytes:
+    if path == CONFIG_FILE:
+        return migrate_bytes(data, "config", path, migrations=migrations)
+    if route_name(path) is not None:
+        return migrate_bytes(data, "route", path, migrations=migrations)
+    return data
+
+
 class Snapshots:
     """The snapshots of one store. See the module docstring for the rules."""
 
@@ -175,6 +185,10 @@ class Snapshots:
         """Return every snapshot, newest first."""
         return [self.get(snapshot_id) for snapshot_id in self._ids()]
 
+    def count(self) -> int:
+        """Return how many snapshots there are, without reading them."""
+        return len(self._ids())
+
     def is_applied(self) -> bool:
         """Return whether `/data/config` equals the newest snapshot, ignoring the password hash."""
         ids = self._ids()
@@ -205,15 +219,23 @@ class Snapshots:
         """
         return diff_files(_read_files(self._store), self._files(snapshot_id))
 
-    def restore(self, snapshot_id: str, lock: HeldLock) -> None:
+    def restore(
+        self, snapshot_id: str, lock: HeldLock, *, migrations: Migrations = MIGRATIONS
+    ) -> None:
         """Stage the snapshot as pending changes, keeping the live password hash.
+
+        The snapshot's files are migrated to this release's versions first, in memory. A snapshot
+        from a newer release raises `MigrationError`.
 
         Afterwards the overlay holds exactly the snapshot's files: files it lacks are staged for
         deletion. Every file is checked, and the domains' credentials must exist in `secrets.yaml`,
         before anything is staged; a failure raises `ValidationFailed`.
         """
         lock.require(self._store.lock_path)
-        files = self._files(snapshot_id)
+        files = {
+            path: _migrated(path, data, migrations)
+            for path, data in self._files(snapshot_id).items()
+        }
         files[CONFIG_FILE] = self._config_to_restore(files[CONFIG_FILE])
         pending = PendingChanges(self._store)
         deleted = sorted(pending.overlay_files(lock).keys() - files.keys())

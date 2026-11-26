@@ -1,10 +1,17 @@
 # Prometheus exporter
 
-HAProxy has a built-in Prometheus exporter. HomeProxy can turn it on, so Prometheus or Grafana can scrape HAProxy directly, without the dashboard in the middle.
+HAProxy has a built-in Prometheus exporter. HomeProxy can turn it on. Then Prometheus or Grafana scrapes HAProxy directly, without the dashboard.
 
 ## Settings
 
-Set these on the Settings page, or in `config.yaml`. A change takes effect on the next apply.
+To turn on the exporter:
+
+1. Open **Settings** and select **Prometheus**.
+2. Turn on **Prometheus exporter**.
+3. Enter **Prometheus listen address**, for example `192.168.1.10:8405`.
+4. Click **Stage changes**, then click **Apply**.
+
+For a hand edit, use `config.yaml`:
 
 ```yaml
 prometheus:
@@ -15,7 +22,7 @@ prometheus:
 - `listen` is an IPv4 address and a port. It is required while `enabled` is true.
 - HAProxy listens only on that address. Use the proxy's LAN IP.
 - If the host does not have that address, for example after its LAN IP changed, HAProxy still starts and proxies. The exporter answers once the address is back. Every apply warns while the host lacks the address, which also catches a typo.
-- The port must not be one that HAProxy or the dashboard already uses: `network.http_port`, `network.https_port`, the `listen_port` of a `tcp` route, the dashboard's port or the DNS server's port. Saving the settings with a clashing port is refused and tells you which port clashes. An apply checks the rule again.
+- The port must not be one that HAProxy or the dashboard already uses: `network.http_port`, `network.https_port`, the `listen_port` of a `tcp` route, the dashboard's port or the DNS server's port. HomeProxy refuses to save a clashing port, and it names the port. An apply checks the rule again.
 
 ## Scraping
 

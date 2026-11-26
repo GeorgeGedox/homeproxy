@@ -9,21 +9,28 @@ from typing import get_args
 import pytest
 from ruamel.yaml.comments import CommentedMap
 
-from homeproxy.models.fields import FileVersion
+from homeproxy.models.fields import ConfigVersion, RouteVersion, SecretsVersion
 from homeproxy.store import (
-    CURRENT_VERSION,
+    CURRENT_VERSIONS,
     MIGRATIONS,
     MigrationError,
     ParseError,
     Store,
     ValidationFailed,
+    copy_for_upgrade,
     dump_tree,
     load_tree,
     migrate_files,
     migrate_tree,
     parse_tree,
+    prune_backups,
 )
-from homeproxy.store.migrate import Migrations
+from homeproxy.store.migrate import (
+    KEEP_BACKUPS,
+    STARTED_VERSION_FILE,
+    FileKind,
+    Migrations,
+)
 from homeproxy.util.atomic import atomic_write
 
 DATA = Path(__file__).parents[4] / "examples" / "data"
@@ -67,9 +74,13 @@ def backups_of(store: Store) -> list[Path]:
     return sorted(store.migration_backups_dir.iterdir())
 
 
-def test_current_version_is_the_one_the_models_accept() -> None:
-    [literal] = get_args(get_args(FileVersion)[0])
-    assert literal == CURRENT_VERSION
+@pytest.mark.parametrize(
+    ("kind", "version_type"),
+    [("config", ConfigVersion), ("route", RouteVersion), ("secrets", SecretsVersion)],
+)
+def test_current_version_is_the_one_the_models_accept(kind: FileKind, version_type: object) -> None:
+    [literal] = get_args(get_args(version_type)[0])
+    assert literal == CURRENT_VERSIONS[kind]
 
 
 def test_registry_covers_every_file_kind() -> None:
@@ -284,3 +295,72 @@ def test_unusable_version_is_refused_without_repeating_it(version: str) -> None:
 def test_missing_version_is_refused() -> None:
     with pytest.raises(MigrationError, match="missing or invalid"):
         migrate_tree(parse_tree(b"key: value\n", "f"), "config", "f")
+
+
+def test_a_step_of_one_kind_rewrites_only_the_files_of_that_kind(store: Store) -> None:
+    routes = sorted(store.route_files())
+    for route in routes:
+        set_version(route, 0)
+    config, secrets = store.config_path.read_bytes(), store.secrets_path.read_bytes()
+    only_routes: Migrations = {"config": {}, "route": {0: noop}, "secrets": {}}
+    with store.lock() as held:
+        changed = migrate_files(store, held, migrations=only_routes)
+    assert sorted(changed) == routes
+    assert store.config_path.read_bytes() == config
+    assert store.secrets_path.read_bytes() == secrets
+    [backup] = backups_of(store)
+    assert set(snapshot(backup)) == {f"config/routes/{route.name}" for route in routes}
+
+
+def stamp_dirs(store: Store) -> list[str]:
+    return [path.name for path in backups_of(store) if path.is_dir()]
+
+
+def test_a_new_version_copies_config_and_secrets_and_a_restart_does_not(store: Store) -> None:
+    with store.lock() as held:
+        copied = copy_for_upgrade(store, held, "0.3.0")
+        assert copied is not None
+        assert copy_for_upgrade(store, held, "0.3.0") is None
+        assert len(stamp_dirs(store)) == 1
+        assert copy_for_upgrade(store, held, "0.4.0") is not None
+    assert len(stamp_dirs(store)) == 2
+    assert snapshot(copied) == {
+        f"config/{name}": data for name, data in snapshot(store.config_dir).items()
+    } | {f"secrets/{name}": data for name, data in snapshot(store.secrets_dir).items()}
+    assert copied.stat().st_mode & 0o777 == 0o700
+    assert (copied / "secrets" / "secrets.yaml").stat().st_mode & 0o777 == 0o600
+    marker = store.migration_backups_dir / STARTED_VERSION_FILE
+    assert marker.read_text().strip() == "0.4.0"
+
+
+def test_a_first_start_with_no_files_records_the_version_and_copies_nothing(tmp_path: Path) -> None:
+    store = Store(tmp_path)
+    with store.lock() as held:
+        assert copy_for_upgrade(store, held, "0.3.0") is None
+        assert copy_for_upgrade(store, held, "0.3.0") is None
+    assert stamp_dirs(store) == []
+    assert (store.migration_backups_dir / STARTED_VERSION_FILE).read_text().strip() == "0.3.0"
+
+
+def test_a_failed_copy_does_not_record_the_version(
+    store: Store, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def fail(path: Path, data: bytes, *, mode: int | None = None) -> None:
+        raise OSError("disk full")
+
+    monkeypatch.setattr("homeproxy.store.migrate.atomic_write", fail)
+    with store.lock() as held, pytest.raises(OSError, match="disk full"):
+        copy_for_upgrade(store, held, "0.3.0")
+    monkeypatch.undo()
+    with store.lock() as held:
+        assert copy_for_upgrade(store, held, "0.3.0") is not None
+
+
+def test_only_the_newest_backup_directories_are_kept(store: Store) -> None:
+    names = [f"2026010{day}T000000000000Z" for day in range(1, 8)]
+    for name in names:
+        (store.migration_backups_dir / name).mkdir(parents=True)
+    (store.migration_backups_dir / STARTED_VERSION_FILE).write_text("0.3.0\n")
+    prune_backups(store)
+    assert stamp_dirs(store) == names[-KEEP_BACKUPS:]
+    assert (store.migration_backups_dir / STARTED_VERSION_FILE).exists()

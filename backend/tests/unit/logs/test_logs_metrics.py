@@ -71,6 +71,17 @@ def test_counts_survive_a_restart(
     assert sorted(((p.group, p.requests) for p in points), key=str) == sorted(expected, key=str)
 
 
+def test_a_request_in_the_first_second_of_a_minute_counts_at_once(tmp_path: Path) -> None:
+    """The query ends at a time inside the request's minute bucket, so that bucket counts."""
+    store = MetricsStore(tmp_path / "metrics.db")
+    store.record(line(NOW + timedelta(milliseconds=500)))
+    store.flush()
+
+    points = store.series(NOW - timedelta(hours=1), NOW + timedelta(milliseconds=900))
+
+    assert points == [SeriesPoint(NOW, None, 1)]
+
+
 def test_stopping_the_save_loop_saves_pending_counts(tmp_path: Path) -> None:
     store = MetricsStore(tmp_path / "metrics.db")
 

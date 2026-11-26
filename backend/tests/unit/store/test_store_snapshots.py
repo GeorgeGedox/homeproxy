@@ -10,9 +10,17 @@ import pytest
 
 from homeproxy.auth.passwords import hash_password, verify_password
 from homeproxy.generator import render
-from homeproxy.store import LockNotHeld, Store, ValidationFailed, load_tree, write_tree
+from homeproxy.store import (
+    LockNotHeld,
+    MigrationError,
+    Store,
+    ValidationFailed,
+    load_tree,
+    write_tree,
+)
 from homeproxy.store import snapshots as snapshots_module
 from homeproxy.store.lock import HeldLock
+from homeproxy.store.migrate import Migrations
 from homeproxy.store.pending import PendingChanges
 from homeproxy.store.snapshots import KEEP, SnapshotNotFound, Snapshots
 from homeproxy.util.atomic import atomic_write as real_write
@@ -324,3 +332,39 @@ def test_a_live_write_keeps_an_applied_config_applied_and_never_applies_a_hand_e
     taken_messages = ["edit dashboard.session_ttl"] if taken else []
     assert [snapshot.message for snapshot in snapshots.list()] == [*taken_messages, "apply"]
     assert snapshots.is_applied() is (before != "hand edit")
+
+
+def set_snapshot_version(snapshots: Snapshots, snapshot_id: str, version: int) -> None:
+    for path in (snapshots.root / snapshot_id / "config").rglob("*.yaml"):
+        raw = path.read_bytes().replace(b"version: 1\n", f"version: {version}\n".encode())
+        path.write_bytes(raw)
+
+
+def test_a_snapshot_from_an_older_version_is_migrated_when_it_is_restored(
+    store: Store, snapshots: Snapshots, pending: PendingChanges, held: HeldLock
+) -> None:
+    old = snapshots.create("first", held)
+    set_snapshot_version(snapshots, old.id, 0)
+    steps: Migrations = {
+        "config": {0: lambda _tree: None},
+        "route": {0: lambda _tree: None},
+        "secrets": {},
+    }
+
+    snapshots.restore(old.id, held, migrations=steps)
+    pending.promote(held)
+
+    assert store.load_config().version == 1
+    assert {route.name for route in store.load_routes()} >= {"files", "whoami"}
+
+
+def test_a_snapshot_from_a_newer_release_is_refused_and_stages_nothing(
+    snapshots: Snapshots, pending: PendingChanges, held: HeldLock
+) -> None:
+    newer = snapshots.create("first", held)
+    set_snapshot_version(snapshots, newer.id, 2)
+
+    with pytest.raises(MigrationError, match="supports 1"):
+        snapshots.restore(newer.id, held)
+
+    assert pending.status(held).changes == ()
