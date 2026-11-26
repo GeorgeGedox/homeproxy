@@ -79,6 +79,8 @@ def test_a_new_crowdsec_key_reaches_the_bouncer_without_an_apply(
 
     assert replaced.status_code == 200
     bouncer = (data_dir / BOUNCER_CONFIG).read_text()
+    # It holds the bouncer key and the captcha secrets.
+    assert stat.S_IMODE((data_dir / BOUNCER_CONFIG).stat().st_mode) == 0o600
     assert '"site_key": "site-NEW"' in bouncer
     assert '"api_key": "bouncer-SECRET-1"' in bouncer  # gitleaks:allow
     assert (
