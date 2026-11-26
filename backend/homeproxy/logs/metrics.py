@@ -52,7 +52,7 @@ ON CONFLICT (bucket, route, country, status) DO UPDATE SET requests = requests +
 """
 _SERIES = """
 SELECT bucket, {column}, SUM(requests) FROM {table}
-WHERE bucket >= ? AND bucket < ? GROUP BY bucket, 2 ORDER BY bucket
+WHERE bucket >= ? AND bucket <= ? GROUP BY bucket, 2 ORDER BY bucket
 """
 
 # Minute bucket (Unix seconds), route, country, status. A missing value is "" or 0, because a
@@ -130,7 +130,8 @@ class MetricsStore:
         """Return request counts from `since` up to `until`, oldest first.
 
         Buckets are minutes while `since` is within `MINUTE_RETENTION` of now, and hours before
-        that. The bucket that holds `since` is included.
+        that. The buckets that hold `since` and `until` are included, so a request in the first
+        second of a minute counts at once.
         """
         step = 60 if since >= datetime.now(UTC) - MINUTE_RETENTION else 3600
         sql = _SERIES.format(column=_GROUP_COLUMNS[group], table=_TABLES[step])
