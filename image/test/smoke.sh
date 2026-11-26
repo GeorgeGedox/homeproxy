@@ -79,6 +79,16 @@ exec_in test -S /run/haproxy/master.sock || fail "no master socket"
 exec_in test -S /run/haproxy/admin.sock || fail "no admin socket"
 [ "$(exec_in readlink /data/generated)" = "releases/placeholder" ] || fail "/data/generated is not the placeholder release"
 
+step "the API and the DNS server run as homeproxy, and private data is 0700"
+for service in api dns; do
+  pid=$(exec_in "$s6/s6-svstat" -o pid "/run/service/$service" | tr -d '[:space:]')
+  [ "$(exec_in stat -c %U "/proc/$pid")" = "homeproxy" ] || fail "$service does not run as homeproxy"
+done
+# Keys, the ACME account, the bouncer's secrets, and stored logs with client addresses and URLs.
+for dir in secrets acme tls crowdsec state/logs; do
+  [ "$(exec_in stat -c '%a %U' "/data/$dir")" = "700 homeproxy" ] || fail "/data/$dir is not 0700 homeproxy"
+done
+
 step "bundled binaries"
 exec_in /usr/local/bin/lego --version >/dev/null || fail "lego does not run"
 exec_in /usr/local/bin/crowdsec-spoa-bouncer --version >/dev/null || fail "SPOA bouncer does not run"
