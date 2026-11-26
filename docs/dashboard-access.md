@@ -71,6 +71,13 @@ The CrowdSec, captcha and MaxMind keys are write-only and saved at once: the pag
 
 ## Change the dashboard address
 
+1. Open **Settings**, then **Dashboard and password**.
+2. In **Dashboard address**, enter the new address as `ip:port`, for example `192.168.1.10:8443`.
+3. Click **Save**.
+4. Click **Open the new address** and log in there within 60 seconds.
+
+In `config.yaml`, the address is `dashboard.listen`. A hand edit needs a restart of the dashboard (see [After setup](#after-setup)).
+
 A wrong address could lock you out, so a new `dashboard.listen` is tried before it is saved:
 
 1. The dashboard refuses an address this host cannot listen on, for example an IP that is not on the host or a port in use. It also refuses an address the next apply would refuse, for example a port HAProxy uses (even while HAProxy is stopped), or one a route forwards to, which could put the dashboard on the internet.
